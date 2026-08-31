@@ -1,0 +1,1529 @@
+{
+ "data": {
+  "citySearch": {
+   "properties": [
+    {
+     "propertyId": 59435296,
+     "sponsoredDetail": {
+      "sponsoredType": "NoSponsored",
+      "trackingData": null,
+      "isShowSponsoredFlag": false
+     },
+     "propertyResultType": "NormalProperty",
+     "content": {
+      "informationSummary": {
+       "hotelCharacter": null,
+       "propertyLinks": {
+        "propertyPage": "/estudio-congreso-h59435296/hotel/all/buenos-aires-ar.html"
+       },
+       "atmospheres": [
+        {
+         "id": 1,
+         "name": "ir de compras"
+        },
+        {
+         "id": 3,
+         "name": "experimentar la cultura local"
+        },
+        {
+         "id": 6,
+         "name": "restaurantes"
+        },
+        {
+         "id": 102,
+         "name": "visitar museos"
+        }
+       ],
+       "isSustainableTravel": false,
+       "localeName": "estudio congreso",
+       "defaultName": "estudio congreso",
+       "displayName": "estudio congreso",
+       "accommodationType": 29,
+       "awardYear": null,
+       "hasHostExperience": true,
+       "nhaSummary": {
+        "hostPropertyCount": 0
+       },
+       "address": {
+        "countryCode": "AR",
+        "country": {
+         "id": 5,
+         "name": "Argentina"
+        },
+        "city": {
+         "id": 9294,
+         "name": "Buenos Aires"
+        },
+        "area": {
+         "id": 378651,
+         "name": "Monserrat"
+        }
+       },
+       "propertyType": "SingleRoom",
+       "rating": 2.5,
+       "isGovernmentVerifiedStars": null,
+       "agodaGuaranteeProgram": false,
+       "remarks": null,
+       "spokenLanguages": [
+        {
+         "id": 1
+        },
+        {
+         "id": 2
+        },
+        {
+         "id": 4
+        },
+        {
+         "id": 5
+        }
+       ],
+       "geoInfo": {
+        "latitude": -34.61317825317383,
+        "longitude": -58.39038848876953
+       }
+      },
+      "propertyEngagement": {
+       "lastBooking": "1899-12-31T23:42:04.000+06:42:04",
+       "peopleLooking": 0,
+       "todayBooking": ""
+      },
+      "nonHotelAccommodation": {
+       "masterRooms": [
+        {
+         "noOfBathrooms": 1,
+         "noOfBedrooms": 1,
+         "noOfBeds": 1,
+         "roomSizeSqm": 30.0,
+         "highlightedFacilities": [
+          "kitchen"
+         ]
+        }
+       ],
+       "hostLevel": null,
+       "supportedLongStay": null
+      },
+      "images": {
+       "hotelImages": [
+        {
+         "id": 754393010,
+         "caption": "",
+         "providerId": 3038,
+         "urls": [
+          {
+           "key": "original",
+           "value": "//q-xx.bstatic.com/xdata/images/hotel/max500/581730914.jpg?k=c5ac22fbc8fe115339f24b9131b25d91056e8244255ce2eac28620024b5ea765&o="
+          }
+         ]
+        }
+       ]
+      },
+      "reviews": {
+       "contentReview": [
+        {
+         "isDefault": true,
+         "providerId": 3038,
+         "cumulative": {
+          "reviewCount": 7,
+          "score": 7.7
+         }
+        }
+       ],
+       "cumulative": {
+        "reviewCount": 7,
+        "score": 7.7
+       },
+       "cumulativeForHost": {
+        "hostAvgHotelReviewRating": 0.0,
+        "hostHotelReviewTotalCount": 0
+       }
+      },
+      "familyFeatures": {
+       "hasChildrenFreePolicy": false,
+       "isFamilyRoom": false,
+       "hasMoreThanOneBedroom": false,
+       "isInterConnectingRoom": false,
+       "isInfantCottageAvailable": false,
+       "hasKidsPool": false,
+       "hasKidsClub": false
+      },
+      "personalizedInformation": {
+       "childrenFreePolicy": null
+      },
+      "localInformation": {
+       "landmarks": {
+        "transportation": [
+         {
+          "landmarkName": "Independencia (E)",
+          "distanceInM": 983.9
+         },
+         {
+          "landmarkName": "Entre Ríos - Rodolfo Walsh",
+          "distanceInM": 1067.7
+         }
+        ],
+        "topLandmark": [
+         {
+          "landmarkName": "Catedral Metropolitana",
+          "distanceInM": 1689.35
+         },
+         {
+          "landmarkName": "El Ateneo Grand Splendid",
+          "distanceInM": 1917.26
+         },
+         {
+          "landmarkName": "Puerto Madero",
+          "distanceInM": 2257.8
+         },
+         {
+          "landmarkName": "Basílica del Santísimo Sacramento",
+          "distanceInM": 2448.46
+         },
+         {
+          "landmarkName": "Recoleta",
+          "distanceInM": 2597.01
+         }
+        ],
+        "beach": []
+       },
+       "hasAirportTransfer": false
+      },
+      "highlight": {
+       "cityCenter": {
+        "distanceFromCityCenter": 382.1364608309601
+       },
+       "favoriteFeatures": {
+        "features": [
+         {
+          "id": 73555,
+          "title": "Cerca de transporte público",
+          "category": "transportation"
+         },
+         {
+          "id": 71728,
+          "title": "Feria de San Telmo",
+          "category": "landmark"
+         }
+        ]
+       },
+       "uniqueAttributes": null,
+       "hasNearbyPublicTransportation": true
+      },
+      "rateCategories": {
+       "escapeRateCategories": null
+      }
+     },
+     "contentTopics": {
+      "topics": []
+     },
+     "soldOut": null,
+     "pricing": {
+      "pulseCampaignMetadata": null,
+      "isAvailable": true,
+      "isReady": true,
+      "benefits": [
+       95
+      ],
+      "cheapestRoomOffer": {
+       "agodaCash": {
+        "showBadge": false,
+        "giftcardGuid": "",
+        "dayToEarn": 0,
+        "earnId": 0,
+        "percentage": null,
+        "expiryDay": 0
+       },
+       "cashback": null
+      },
+      "isEasyCancel": false,
+      "isInsiderDeal": false,
+      "isMultiHotelEligible": true,
+      "suggestPriceType": {
+       "suggestPrice": "ExclusiveWithFees",
+       "applyType": "PRPN"
+      },
+      "roomBundle": null,
+      "pointmax": null,
+      "priceChange": null,
+      "payment": {
+       "cancellation": {
+        "cancellationType": "NonRefundable",
+        "freeCancellationDate": null
+       },
+       "payLater": {
+        "isEligible": false
+       },
+       "payAtHotel": {
+        "isEligible": true
+       },
+       "noCreditCard": {
+        "isEligible": true
+       },
+       "taxReceipt": {
+        "isEligible": false
+       }
+      },
+      "cheapestStayPackageRatePlans": [
+       {
+        "stayPackageType": 0,
+        "ratePlanId": 0
+       }
+      ],
+      "pricingMessages": [],
+      "suppliersSummaries": [
+       {
+        "id": 3038,
+        "supplierHotelId": "12496818"
+       }
+      ],
+      "supplierInfo": null,
+      "childPolicy": {
+       "freeChildren": 0
+      },
+      "growthProgramInfo": null,
+      "offers": [
+       {
+        "bundleType": "NormalOffer",
+        "bundleDetail": null,
+        "roomOffers": [
+         {
+          "room": {
+           "extraPriceInfo": {
+            "displayPriceWithSurchargesPRPN": null,
+            "corDisplayPriceWithSurchargesPRPN": null
+           },
+           "availableRooms": 1,
+           "isPromoEligible": false,
+           "promotions": null,
+           "consolidatedAppliedDiscount": null,
+           "bookingDuration": null,
+           "supplierId": 3038,
+           "corSummary": {
+            "hasCor": false,
+            "corType": "NoCOR",
+            "isOriginal": false,
+            "hasOwnCOR": false,
+            "isBlacklistedCor": false
+           },
+           "localVoucher": null,
+           "packaging": null,
+           "pricing": [
+            {
+             "currency": "USD",
+             "price": {
+              "perNight": {
+               "exclusive": {
+                "display": 40.0,
+                "cashbackPrice": null,
+                "displayAfterCashback": null,
+                "originalPrice": 40.0
+               },
+               "inclusive": {
+                "display": 43.0,
+                "cashbackPrice": null,
+                "displayAfterCashback": null,
+                "originalPrice": 43.0
+               }
+              },
+              "perBook": {
+               "exclusive": {
+                "display": 40.0,
+                "cashbackPrice": null,
+                "displayAfterCashback": null,
+                "rebatePrice": 0.0,
+                "pseudoCouponPrice": 0.0,
+                "originalPrice": 40.0,
+                "autoAppliedPromoDiscount": null,
+                "loyaltyOfferSummary": {
+                 "status": null,
+                 "basePrice": {
+                  "exclusive": 40.0,
+                  "allInclusive": 40.0
+                 },
+                 "offers": []
+                }
+               },
+               "inclusive": {
+                "display": 43.0,
+                "crossedOutPrice": 0.0,
+                "cashbackPrice": null,
+                "displayAfterCashback": null,
+                "rebatePrice": 0.0,
+                "pseudoCouponPrice": 0.0,
+                "originalPrice": 43.0,
+                "autoAppliedPromoDiscount": null,
+                "loyaltyOfferSummary": {
+                 "status": null,
+                 "basePrice": {
+                  "exclusive": 40.0,
+                  "allInclusive": 40.0
+                 },
+                 "offers": []
+                }
+               }
+              },
+              "perRoomPerNight": {
+               "exclusive": {
+                "display": 40.0,
+                "crossedOutPrice": 0.0,
+                "cashbackPrice": null,
+                "displayAfterCashback": null,
+                "rebatePrice": 0.0,
+                "pseudoCouponPrice": 0.0,
+                "originalPrice": 40.0,
+                "loyaltyOfferSummary": {
+                 "basePrice": {
+                  "exclusive": 40.0,
+                  "allInclusive": 40.0
+                 },
+                 "status": null,
+                 "offers": []
+                }
+               },
+               "inclusive": {
+                "display": 43.0,
+                "crossedOutPrice": 0.0,
+                "cashbackPrice": null,
+                "displayAfterCashback": null,
+                "rebatePrice": 0.0,
+                "pseudoCouponPrice": 0.0,
+                "originalPrice": 43.0,
+                "loyaltyOfferSummary": {
+                 "basePrice": {
+                  "exclusive": 40.0,
+                  "allInclusive": 40.0
+                 },
+                 "status": null,
+                 "offers": []
+                }
+               }
+              },
+              "totalDiscount": 0,
+              "priceAfterAppliedAgodaCash": null
+             },
+             "apsPeek": null,
+             "promotionPricePeek": null,
+             "channelDiscountSummary": {
+              "channelDiscountBreakdown": []
+             },
+             "promotionsCumulative": []
+            }
+           ],
+           "uid": "CpIBCK6Sz9UGEAQgAjAESg0zNjVEMTAwUF8xMDBQULwvenJTb21lKDEyNDk2ODE4KXw4OTUwODM2NzF8MXwxMjQ5NjgxODAxXzM5NzQxMzYyN18yXzBfMF8wfDJ8MTR8TGlzdCgpfDM2NUQxMDBQXzEwMFB8U29tZShmYWxzZXx0cnVlfDM2NUQxMDBQXzEwMFB8MikSAggBGggYASABKAQwASIECAQYAg==",
+           "payment": {
+            "paymentModel": "Agency",
+            "cancellation": {
+             "cancellationType": "NonRefundable"
+            }
+           },
+           "discount": {
+            "deals": [],
+            "channelDiscount": "Retail"
+           },
+           "saveUpTo": {
+            "perRoomPerNight": 0
+           },
+           "benefits": [
+            {
+             "id": 95,
+             "targetType": 0
+            }
+           ],
+           "channel": {
+            "id": 1
+           },
+           "mseRoomSummaries": [
+            {
+             "supplierId": 3038,
+             "subSupplierId": 3038,
+             "pricingSummaries": [
+              {
+               "currency": "USD",
+               "channelDiscountSummary": {
+                "channelDiscountBreakdown": []
+               },
+               "price": {
+                "perRoomPerNight": {
+                 "exclusive": {
+                  "display": 40.0
+                 },
+                 "inclusive": {
+                  "display": 43.0
+                 }
+                }
+               }
+              }
+             ]
+            }
+           ],
+           "cashback": null,
+           "agodaCash": {
+            "showBadge": false,
+            "giftcardGuid": "",
+            "dayToEarn": 0,
+            "expiryDay": 0,
+            "percentage": null
+           },
+           "corInfo": {
+            "corBreakdown": {
+             "taxExPN": [
+              {
+               "price": 40.0,
+               "id": 1
+              }
+             ],
+             "taxInPN": [
+              {
+               "price": 43.0,
+               "id": 1
+              }
+             ],
+             "taxExPRPN": [
+              {
+               "price": 40.0,
+               "id": 1
+              }
+             ],
+             "taxInPRPN": [
+              {
+               "price": 43.0,
+               "id": 1
+              }
+             ]
+            },
+            "corInfo": {
+             "corType": "NoCOR"
+            }
+           },
+           "loyaltyDisplay": null,
+           "capacity": {
+            "extraBedsAvailable": false
+           },
+           "pricingMessages": null,
+           "campaign": null,
+           "stayPackageType": 0,
+           "isMseLastClickedOffer": null
+          }
+         }
+        ]
+       }
+      ]
+     },
+     "metaLab": {
+      "attributes": [
+       {
+        "attributeId": 1,
+        "dataType": "BOOLEAN",
+        "value": "false",
+        "version": "V1"
+       },
+       {
+        "attributeId": 2,
+        "dataType": "BOOLEAN",
+        "value": "false",
+        "version": "V1"
+       },
+       {
+        "attributeId": 18,
+        "dataType": "BOOLEAN",
+        "value": "false",
+        "version": "V1"
+       }
+      ]
+     },
+     "enrichment": {
+      "topSellingPoint": [],
+      "pricingBadges": {
+       "badges": []
+      },
+      "uniqueSellingPoint": [],
+      "bookingHistory": {
+       "bookingCount": {
+        "count": 0,
+        "timeFrame": "PastTwentyFourHours"
+       }
+      },
+      "showReviewSnippet": false,
+      "isPopular": false,
+      "roomInformation": {
+       "cheapestRoomSizeSqm": 30.0,
+       "facilities": []
+      },
+      "jacketMetadata": null
+     }
+    },
+    {
+     "propertyId": 164143,
+     "sponsoredDetail": {
+      "sponsoredType": "NoSponsored",
+      "trackingData": null,
+      "isShowSponsoredFlag": false
+     },
+     "propertyResultType": "SoldOutProperty",
+     "content": {
+      "informationSummary": {
+       "hotelCharacter": null,
+       "propertyLinks": {
+        "propertyPage": "/piedras-suites-aparthotel/hotel/buenos-aires-ar.html"
+       },
+       "atmospheres": [
+        {
+         "id": 3,
+         "name": "experimentar la cultura local"
+        }
+       ],
+       "isSustainableTravel": false,
+       "localeName": "Piedras Suites Apartahotel",
+       "defaultName": "Piedras Suites Aparthotel",
+       "displayName": "Piedras Suites Apartahotel (Piedras Suites Aparthotel)",
+       "accommodationType": 34,
+       "awardYear": null,
+       "hasHostExperience": false,
+       "nhaSummary": {
+        "hostPropertyCount": 0
+       },
+       "address": {
+        "countryCode": "AR",
+        "country": {
+         "id": 5,
+         "name": "Argentina"
+        },
+        "city": {
+         "id": 9294,
+         "name": "Buenos Aires"
+        },
+        "area": {
+         "id": 485374,
+         "name": "San Telmo"
+        }
+       },
+       "propertyType": "Hotel",
+       "rating": 4.0,
+       "isGovernmentVerifiedStars": null,
+       "agodaGuaranteeProgram": false,
+       "remarks": null,
+       "spokenLanguages": [
+        {
+         "id": 1
+        },
+        {
+         "id": 4
+        },
+        {
+         "id": 12
+        },
+        {
+         "id": 5
+        }
+       ],
+       "geoInfo": {
+        "latitude": -34.6186805561622,
+        "longitude": -58.3771473169327
+       }
+      },
+      "propertyEngagement": {
+       "lastBooking": "1899-12-31T23:42:04.000+06:42:04",
+       "peopleLooking": 0,
+       "todayBooking": ""
+      },
+      "nonHotelAccommodation": {
+       "masterRooms": [],
+       "hostLevel": null,
+       "supportedLongStay": null
+      },
+      "images": {
+       "hotelImages": [
+        {
+         "id": 4370869,
+         "caption": "Vista exterior",
+         "providerId": 332,
+         "urls": [
+          {
+           "key": "original",
+           "value": "//pix8.agoda.net/hotelImages/164143/0/4cf908da05dbc06e6c65afc028ac3207.jpeg"
+          }
+         ]
+        }
+       ]
+      },
+      "reviews": {
+       "contentReview": [
+        {
+         "isDefault": true,
+         "providerId": 332,
+         "cumulative": {
+          "reviewCount": 2,
+          "score": 9.0
+         }
+        }
+       ],
+       "cumulative": {
+        "reviewCount": 2,
+        "score": 9.0
+       },
+       "cumulativeForHost": null
+      },
+      "familyFeatures": {
+       "hasChildrenFreePolicy": true,
+       "isFamilyRoom": true,
+       "hasMoreThanOneBedroom": false,
+       "isInterConnectingRoom": false,
+       "isInfantCottageAvailable": true,
+       "hasKidsPool": false,
+       "hasKidsClub": false
+      },
+      "personalizedInformation": {
+       "childrenFreePolicy": {
+        "fromAge": 0,
+        "toAge": 2
+       }
+      },
+      "localInformation": {
+       "landmarks": {
+        "transportation": [
+         {
+          "landmarkName": "Independencia (E)",
+          "distanceInM": 400.35
+         },
+         {
+          "landmarkName": "San José",
+          "distanceInM": 843.02
+         }
+        ],
+        "topLandmark": [
+         {
+          "landmarkName": "Catedral Metropolitana",
+          "distanceInM": 1277.57
+         },
+         {
+          "landmarkName": "Puerto Madero",
+          "distanceInM": 1528.19
+         },
+         {
+          "landmarkName": "Basílica del Santísimo Sacramento",
+          "distanceInM": 2568.08
+         },
+         {
+          "landmarkName": "El Ateneo Grand Splendid",
+          "distanceInM": 2941.0
+         },
+         {
+          "landmarkName": "Recoleta",
+          "distanceInM": 3538.96
+         }
+        ],
+        "beach": []
+       },
+       "hasAirportTransfer": false
+      },
+      "highlight": {
+       "cityCenter": {
+        "distanceFromCityCenter": 0.0
+       },
+       "favoriteFeatures": {
+        "features": [
+         {
+          "id": 17,
+          "title": "Traslado al/del aeropuerto",
+          "category": "property-facility"
+         },
+         {
+          "id": 109,
+          "title": "Wifi gratis en las habitaciones",
+          "category": "property-facility"
+         },
+         {
+          "id": 73555,
+          "title": "Cerca de transporte público",
+          "category": "transportation"
+         },
+         {
+          "id": 71728,
+          "title": "Feria de San Telmo",
+          "category": "landmark"
+         }
+        ]
+       },
+       "uniqueAttributes": null,
+       "hasNearbyPublicTransportation": true
+      },
+      "rateCategories": {
+       "escapeRateCategories": null
+      }
+     },
+     "contentTopics": null,
+     "soldOut": null,
+     "pricing": {
+      "pulseCampaignMetadata": null,
+      "isAvailable": false,
+      "isReady": true,
+      "benefits": [],
+      "cheapestRoomOffer": null,
+      "isEasyCancel": null,
+      "isInsiderDeal": null,
+      "isMultiHotelEligible": false,
+      "suggestPriceType": {
+       "suggestPrice": "AllInclusive",
+       "applyType": "PB"
+      },
+      "roomBundle": null,
+      "pointmax": null,
+      "priceChange": null,
+      "payment": null,
+      "cheapestStayPackageRatePlans": null,
+      "pricingMessages": [],
+      "suppliersSummaries": [],
+      "supplierInfo": null,
+      "childPolicy": null,
+      "growthProgramInfo": null,
+      "offers": []
+     },
+     "metaLab": null,
+     "enrichment": {
+      "topSellingPoint": [],
+      "pricingBadges": null,
+      "uniqueSellingPoint": [],
+      "bookingHistory": {
+       "bookingCount": {
+        "count": 0,
+        "timeFrame": "PastTwentyFourHours"
+       }
+      },
+      "showReviewSnippet": false,
+      "isPopular": false,
+      "roomInformation": {
+       "cheapestRoomSizeSqm": null,
+       "facilities": []
+      },
+      "jacketMetadata": null
+     }
+    },
+    {
+     "propertyId": 35039238,
+     "sponsoredDetail": {
+      "sponsoredType": "NoSponsored",
+      "trackingData": null,
+      "isShowSponsoredFlag": false
+     },
+     "propertyResultType": "NormalProperty",
+     "content": {
+      "informationSummary": {
+       "hotelCharacter": null,
+       "propertyLinks": {
+        "propertyPage": "/ruda-hostel/hotel/all/buenos-aires-ar.html"
+       },
+       "atmospheres": [
+        {
+         "id": 1,
+         "name": "ir de compras"
+        },
+        {
+         "id": 5,
+         "name": "salir de fiesta"
+        },
+        {
+         "id": 6,
+         "name": "restaurantes"
+        },
+        {
+         "id": 102,
+         "name": "visitar museos"
+        }
+       ],
+       "isSustainableTravel": false,
+       "localeName": "Ruda Hostel",
+       "defaultName": "Ruda Hostel",
+       "displayName": "Ruda Hostel",
+       "accommodationType": 33,
+       "awardYear": null,
+       "hasHostExperience": false,
+       "nhaSummary": {
+        "hostPropertyCount": 0
+       },
+       "address": {
+        "countryCode": "AR",
+        "country": {
+         "id": 5,
+         "name": "Argentina"
+        },
+        "city": {
+         "id": 9294,
+         "name": "Buenos Aires"
+        },
+        "area": {
+         "id": 31214,
+         "name": "Palermo"
+        }
+       },
+       "propertyType": "Hotel",
+       "rating": 2.0,
+       "isGovernmentVerifiedStars": null,
+       "agodaGuaranteeProgram": false,
+       "remarks": null,
+       "spokenLanguages": [
+        {
+         "id": 1
+        },
+        {
+         "id": 12
+        },
+        {
+         "id": 5
+        }
+       ],
+       "geoInfo": {
+        "latitude": -34.581939697265625,
+        "longitude": -58.40764236450195
+       }
+      },
+      "propertyEngagement": {
+       "lastBooking": "1899-12-31T23:42:04.000+06:42:04",
+       "peopleLooking": 0,
+       "todayBooking": ""
+      },
+      "nonHotelAccommodation": {
+       "masterRooms": [],
+       "hostLevel": null,
+       "supportedLongStay": null
+      },
+      "images": {
+       "hotelImages": [
+        {
+         "id": 924709451,
+         "caption": "",
+         "providerId": 3038,
+         "urls": [
+          {
+           "key": "original",
+           "value": "//q-xx.bstatic.com/xdata/images/hotel/max500/585118974.jpg?k=39f6de395839e8912230d60f0c8a283d8549808eaa789d088d80df1cb4ff6b4c&o="
+          }
+         ]
+        }
+       ]
+      },
+      "reviews": {
+       "contentReview": [
+        {
+         "isDefault": true,
+         "providerId": 332,
+         "cumulative": {
+          "reviewCount": 10,
+          "score": 7.2
+         }
+        },
+        {
+         "isDefault": false,
+         "providerId": 3038,
+         "cumulative": {
+          "reviewCount": 625,
+          "score": 8.0
+         }
+        }
+       ],
+       "cumulative": {
+        "reviewCount": 635,
+        "score": 7.9
+       },
+       "cumulativeForHost": null
+      },
+      "familyFeatures": {
+       "hasChildrenFreePolicy": false,
+       "isFamilyRoom": true,
+       "hasMoreThanOneBedroom": false,
+       "isInterConnectingRoom": false,
+       "isInfantCottageAvailable": false,
+       "hasKidsPool": false,
+       "hasKidsClub": false
+      },
+      "personalizedInformation": {
+       "childrenFreePolicy": null
+      },
+      "localInformation": {
+       "landmarks": {
+        "transportation": [
+         {
+          "landmarkName": "Saldías",
+          "distanceInM": 1033.19
+         },
+         {
+          "landmarkName": "Las Heras",
+          "distanceInM": 1140.31
+         }
+        ],
+        "topLandmark": [
+         {
+          "landmarkName": "Museo de Arte Latinoamericano de Buenos Aires",
+          "distanceInM": 668.98
+         },
+         {
+          "landmarkName": "Parque 3 de Febrero",
+          "distanceInM": 1313.62
+         },
+         {
+          "landmarkName": "Museo Nacional de Bellas Artes",
+          "distanceInM": 1363.79
+         },
+         {
+          "landmarkName": "Cementerio La Recoleta",
+          "distanceInM": 1498.95
+         },
+         {
+          "landmarkName": "Recoleta",
+          "distanceInM": 1544.98
+         }
+        ],
+        "beach": []
+       },
+       "hasAirportTransfer": false
+      },
+      "highlight": {
+       "cityCenter": {
+        "distanceFromCityCenter": 386.91665256812803
+       },
+       "favoriteFeatures": {
+        "features": [
+         {
+          "id": 109,
+          "title": "Wifi gratis en las habitaciones",
+          "category": "property-facility"
+         },
+         {
+          "id": 105119,
+          "title": "Palacio Barolo",
+          "category": "landmark"
+         }
+        ]
+       },
+       "uniqueAttributes": null,
+       "hasNearbyPublicTransportation": false
+      },
+      "rateCategories": {
+       "escapeRateCategories": null
+      }
+     },
+     "contentTopics": {
+      "topics": []
+     },
+     "soldOut": null,
+     "pricing": {
+      "pulseCampaignMetadata": null,
+      "isAvailable": true,
+      "isReady": true,
+      "benefits": [
+       95
+      ],
+      "cheapestRoomOffer": {
+       "agodaCash": {
+        "showBadge": false,
+        "giftcardGuid": "",
+        "dayToEarn": 0,
+        "earnId": 0,
+        "percentage": null,
+        "expiryDay": 0
+       },
+       "cashback": null
+      },
+      "isEasyCancel": false,
+      "isInsiderDeal": false,
+      "isMultiHotelEligible": true,
+      "suggestPriceType": {
+       "suggestPrice": "ExclusiveWithFees",
+       "applyType": "PRPN"
+      },
+      "roomBundle": null,
+      "pointmax": null,
+      "priceChange": null,
+      "payment": {
+       "cancellation": {
+        "cancellationType": "FreeCancellation",
+        "freeCancellationDate": "2026-09-01T00:00:00.000+07:00"
+       },
+       "payLater": {
+        "isEligible": false
+       },
+       "payAtHotel": {
+        "isEligible": true
+       },
+       "noCreditCard": {
+        "isEligible": false
+       },
+       "taxReceipt": {
+        "isEligible": false
+       }
+      },
+      "cheapestStayPackageRatePlans": [
+       {
+        "stayPackageType": 0,
+        "ratePlanId": 0
+       }
+      ],
+      "pricingMessages": [
+       {
+        "location": 2,
+        "ids": [
+         103007
+        ]
+       }
+      ],
+      "suppliersSummaries": [
+       {
+        "id": 28281,
+        "supplierHotelId": null
+       },
+       {
+        "id": 28037,
+        "supplierHotelId": null
+       },
+       {
+        "id": 28115,
+        "supplierHotelId": null
+       },
+       {
+        "id": 27905,
+        "supplierHotelId": null
+       },
+       {
+        "id": 29188,
+        "supplierHotelId": null
+       },
+       {
+        "id": 28703,
+        "supplierHotelId": null
+       },
+       {
+        "id": 3038,
+        "supplierHotelId": "9052864"
+       },
+       {
+        "id": 27982,
+        "supplierHotelId": null
+       },
+       {
+        "id": 28333,
+        "supplierHotelId": null
+       }
+      ],
+      "supplierInfo": null,
+      "childPolicy": {
+       "freeChildren": 0
+      },
+      "growthProgramInfo": null,
+      "offers": [
+       {
+        "bundleType": "NormalOffer",
+        "bundleDetail": null,
+        "roomOffers": [
+         {
+          "room": {
+           "extraPriceInfo": {
+            "displayPriceWithSurchargesPRPN": null,
+            "corDisplayPriceWithSurchargesPRPN": null
+           },
+           "availableRooms": 1,
+           "isPromoEligible": false,
+           "promotions": null,
+           "consolidatedAppliedDiscount": null,
+           "bookingDuration": null,
+           "supplierId": 3038,
+           "corSummary": {
+            "hasCor": false,
+            "corType": "NoCOR",
+            "isOriginal": false,
+            "hasOwnCOR": false,
+            "isBlacklistedCor": false
+           },
+           "localVoucher": null,
+           "packaging": null,
+           "pricing": [
+            {
+             "currency": "USD",
+             "price": {
+              "perNight": {
+               "exclusive": {
+                "display": 40.5,
+                "cashbackPrice": null,
+                "displayAfterCashback": null,
+                "originalPrice": 40.5
+               },
+               "inclusive": {
+                "display": 40.5,
+                "cashbackPrice": null,
+                "displayAfterCashback": null,
+                "originalPrice": 40.5
+               }
+              },
+              "perBook": {
+               "exclusive": {
+                "display": 40.5,
+                "cashbackPrice": null,
+                "displayAfterCashback": null,
+                "rebatePrice": 0.0,
+                "pseudoCouponPrice": 0.0,
+                "originalPrice": 40.5,
+                "autoAppliedPromoDiscount": null,
+                "loyaltyOfferSummary": {
+                 "status": null,
+                 "basePrice": {
+                  "exclusive": 40.5,
+                  "allInclusive": 40.5
+                 },
+                 "offers": []
+                }
+               },
+               "inclusive": {
+                "display": 40.5,
+                "crossedOutPrice": 0.0,
+                "cashbackPrice": null,
+                "displayAfterCashback": null,
+                "rebatePrice": 0.0,
+                "pseudoCouponPrice": 0.0,
+                "originalPrice": 40.5,
+                "autoAppliedPromoDiscount": null,
+                "loyaltyOfferSummary": {
+                 "status": null,
+                 "basePrice": {
+                  "exclusive": 40.5,
+                  "allInclusive": 40.5
+                 },
+                 "offers": []
+                }
+               }
+              },
+              "perRoomPerNight": {
+               "exclusive": {
+                "display": 40.5,
+                "crossedOutPrice": 0.0,
+                "cashbackPrice": null,
+                "displayAfterCashback": null,
+                "rebatePrice": 0.0,
+                "pseudoCouponPrice": 0.0,
+                "originalPrice": 40.5,
+                "loyaltyOfferSummary": {
+                 "basePrice": {
+                  "exclusive": 40.5,
+                  "allInclusive": 40.5
+                 },
+                 "status": null,
+                 "offers": []
+                }
+               },
+               "inclusive": {
+                "display": 40.5,
+                "crossedOutPrice": 0.0,
+                "cashbackPrice": null,
+                "displayAfterCashback": null,
+                "rebatePrice": 0.0,
+                "pseudoCouponPrice": 0.0,
+                "originalPrice": 40.5,
+                "loyaltyOfferSummary": {
+                 "basePrice": {
+                  "exclusive": 40.5,
+                  "allInclusive": 40.5
+                 },
+                 "status": null,
+                 "offers": []
+                }
+               }
+              },
+              "totalDiscount": 0,
+              "priceAfterAppliedAgodaCash": null
+             },
+             "apsPeek": null,
+             "promotionPricePeek": null,
+             "channelDiscountSummary": {
+              "channelDiscountBreakdown": []
+             },
+             "promotionsCumulative": []
+            }
+           ],
+           "uid": "CooBCMjU46wEEAQgAjAESgswRDEwMFBfMTAwUFC8L3psU29tZSg5MDUyODY0KXw1ODM4MjQ2NzZ8MXw5MDUyODY0MDVfNDE5NzI3NzIzXzJfMF8wXzB8MnwxNHxMaXN0KCl8MEQxMDBQXzEwMFB8U29tZShmYWxzZXx0cnVlfDBEMTAwUF8xMDBQfDEpEgIIARoGGAEoBDABIgQIBBgC",
+           "payment": {
+            "paymentModel": "Agency",
+            "cancellation": {
+             "cancellationType": "FreeCancellation"
+            }
+           },
+           "discount": {
+            "deals": [],
+            "channelDiscount": "Retail"
+           },
+           "saveUpTo": {
+            "perRoomPerNight": 0
+           },
+           "benefits": [
+            {
+             "id": 95,
+             "targetType": 0
+            }
+           ],
+           "channel": {
+            "id": 1
+           },
+           "mseRoomSummaries": [
+            {
+             "supplierId": 3038,
+             "subSupplierId": 3038,
+             "pricingSummaries": [
+              {
+               "currency": "USD",
+               "channelDiscountSummary": {
+                "channelDiscountBreakdown": []
+               },
+               "price": {
+                "perRoomPerNight": {
+                 "exclusive": {
+                  "display": 40.5
+                 },
+                 "inclusive": {
+                  "display": 40.5
+                 }
+                }
+               }
+              }
+             ]
+            }
+           ],
+           "cashback": null,
+           "agodaCash": {
+            "showBadge": false,
+            "giftcardGuid": "",
+            "dayToEarn": 0,
+            "expiryDay": 0,
+            "percentage": null
+           },
+           "corInfo": {
+            "corBreakdown": {
+             "taxExPN": [
+              {
+               "price": 41.0,
+               "id": 1
+              }
+             ],
+             "taxInPN": [
+              {
+               "price": 41.0,
+               "id": 1
+              }
+             ],
+             "taxExPRPN": [
+              {
+               "price": 41.0,
+               "id": 1
+              }
+             ],
+             "taxInPRPN": [
+              {
+               "price": 41.0,
+               "id": 1
+              }
+             ]
+            },
+            "corInfo": {
+             "corType": "NoCOR"
+            }
+           },
+           "loyaltyDisplay": null,
+           "capacity": {
+            "extraBedsAvailable": false
+           },
+           "pricingMessages": {
+            "formatted": [
+             {
+              "location": 2,
+              "texts": [
+               {
+                "index": 0,
+                "text": "Send Mix and Save to the SSR"
+               }
+              ]
+             }
+            ]
+           },
+           "campaign": null,
+           "stayPackageType": 0,
+           "isMseLastClickedOffer": null
+          }
+         }
+        ]
+       }
+      ]
+     },
+     "metaLab": {
+      "attributes": [
+       {
+        "attributeId": 1,
+        "dataType": "BOOLEAN",
+        "value": "false",
+        "version": "V1"
+       },
+       {
+        "attributeId": 2,
+        "dataType": "BOOLEAN",
+        "value": "false",
+        "version": "V1"
+       },
+       {
+        "attributeId": 7,
+        "dataType": "BOOLEAN",
+        "value": "true",
+        "version": "V1"
+       },
+       {
+        "attributeId": 18,
+        "dataType": "BOOLEAN",
+        "value": "true",
+        "version": "V1"
+       }
+      ]
+     },
+     "enrichment": {
+      "topSellingPoint": [],
+      "pricingBadges": {
+       "badges": []
+      },
+      "uniqueSellingPoint": [],
+      "bookingHistory": {
+       "bookingCount": {
+        "count": 0,
+        "timeFrame": "PastTwentyFourHours"
+       }
+      },
+      "showReviewSnippet": false,
+      "isPopular": false,
+      "roomInformation": {
+       "cheapestRoomSizeSqm": 36.0,
+       "facilities": []
+      },
+      "jacketMetadata": null
+     }
+    }
+   ],
+   "aggregation": {
+    "matrixGroupResults": [
+     {
+      "matrixGroup": "AccommodationType",
+      "matrixItemResults": [
+       {
+        "id": 34,
+        "name": "Hotel ",
+        "count": 773,
+        "filterKey": "AccommodationType",
+        "filterRequestType": "IDs",
+        "syncId": null,
+        "extraDataResults": null
+       },
+       {
+        "id": 29,
+        "name": "Apartamento/Piso",
+        "count": 636,
+        "filterKey": "AccommodationType",
+        "filterRequestType": "IDs",
+        "syncId": null,
+        "extraDataResults": null
+       },
+       {
+        "id": 120,
+        "name": "Apartamento con servicio",
+        "count": 46,
+        "filterKey": "AccommodationType",
+        "filterRequestType": "IDs",
+        "syncId": null,
+        "extraDataResults": null
+       },
+       {
+        "id": 32,
+        "name": "Pensión / Bed & Breakfast",
+        "count": 14,
+        "filterKey": "AccommodationType",
+        "filterRequestType": "IDs",
+        "syncId": null,
+        "extraDataResults": null
+       },
+       {
+        "id": 131,
+        "name": "Casa entera",
+        "count": 17,
+        "filterKey": "AccommodationType",
+        "filterRequestType": "IDs",
+        "syncId": null,
+        "extraDataResults": null
+       },
+       {
+        "id": 33,
+        "name": "Hostel",
+        "count": 33,
+        "filterKey": "AccommodationType",
+        "filterRequestType": "IDs",
+        "syncId": null,
+        "extraDataResults": null
+       },
+       {
+        "id": 105,
+        "name": "Hotel cápsula",
+        "count": 1,
+        "filterKey": "AccommodationType",
+        "filterRequestType": "IDs",
+        "syncId": null,
+        "extraDataResults": null
+       },
+       {
+        "id": 113,
+        "name": "Love Hotel",
+        "count": 5,
+        "filterKey": "AccommodationType",
+        "filterRequestType": "IDs",
+        "syncId": null,
+        "extraDataResults": null
+       },
+       {
+        "id": 110,
+        "name": "Parque de vacaciones/Caravanas",
+        "count": 2,
+        "filterKey": "AccommodationType",
+        "filterRequestType": "IDs",
+        "syncId": null,
+        "extraDataResults": null
+       },
+       {
+        "id": 111,
+        "name": "Posada",
+        "count": 2,
+        "filterKey": "AccommodationType",
+        "filterRequestType": "IDs",
+        "syncId": null,
+        "extraDataResults": null
+       },
+       {
+        "id": 108,
+        "name": "Estancia en una familia",
+        "count": 21,
+        "filterKey": "AccommodationType",
+        "filterRequestType": "IDs",
+        "syncId": null,
+        "extraDataResults": null
+       },
+       {
+        "id": 89,
+        "name": "Ideal para familias/niños",
+        "count": 704,
+        "filterKey": "HotelFacilities",
+        "filterRequestType": "IDs",
+        "syncId": null,
+        "extraDataResults": null
+       }
+      ]
+     }
+    ]
+   },
+   "searchResult": {
+    "searchInfo": {
+     "totalFilteredHotels": 1543,
+     "objectInfo": {
+      "cityName": "Buenos Aires",
+      "cityId": 9294
+     }
+    }
+   }
+  }
+ }
+}

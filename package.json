@@ -1,0 +1,17 @@
+{
+  "name": "agoda-tracker",
+  "version": "1.0.0",
+  "description": "Extractor y seguidor de precios de Agoda: baja todas las publicaciones de una busqueda, las filtra y ordena como Agoda no te deja, y registra cuanto bajo cada precio.",
+  "type": "module",
+  "bin": { "agoda": "./bin/agoda.mjs" },
+  "engines": { "node": ">=22.5.0" },
+  "scripts": {
+    "postinstall": "node scripts/check-browser.mjs || true",
+    "test": "node --test 'test/**/*.test.mjs'"
+  },
+  "dependencies": {
+    "playwright-core": "^1.56.0"
+  },
+  "license": "MIT",
+  "private": true
+}

@@ -98,6 +98,7 @@ ${B('SALIDA')}
   --desde <horas>      Comparar solo contra las ultimas N horas (ver, bajadas)
   --busqueda <id>      Sobre que busqueda guardada trabajar (ver "agoda buscas")
   --csv <archivo>      Exporta a CSV      --html <archivo> reporte navegable
+  --fotos <modo>       url (por defecto), incrustadas (archivo autonomo) o ninguna
   --json               Volca JSON crudo por stdout
 
 ${B('SEGUIMIENTO')}   ${G('(comando seguir)')}

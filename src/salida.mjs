@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { c, tabla, fmtPrecio, fmtPct, recortar, sparkline, horaCorta, haceCuanto } from './util.mjs';
+import { miniatura } from './imagenes.mjs';
 
 const SOPORTA_LINKS = process.stdout.isTTY && !process.env.NO_HYPERLINKS;
 
@@ -167,9 +168,15 @@ export function guardar(ruta, contenido) {
 const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
-/** Fila de la base -> objeto liviano para el navegador. */
-function filaParaWeb(f, historiales) {
+/**
+ * Fila de la base -> objeto liviano para el navegador.
+ * Las fotos van siempre como miniatura: la original pesa 40 veces mas y en una
+ * tabla de cientos de filas eso son decenas de megas que no se ven.
+ * Si `fotos` viene, la miniatura va incrustada como data: URI.
+ */
+function filaParaWeb(f, historiales, fotos) {
   const id = f.property_id ?? f.propertyId;
+  const mini = miniatura(f.imagen);
   const final = f._precio ?? f.por_noche ?? f.porNoche ?? null;
   const base = f.por_noche_sin_imp ?? f.porNocheSinImp ?? null;
   return {
@@ -188,7 +195,7 @@ function filaParaWeb(f, historiales) {
     tipo: tipoCorto(f.tipo),
     zona: f.zona ?? '',
     url: f.url ?? '',
-    img: f.imagen ?? '',
+    img: (fotos ? fotos.get(mini) : mini) ?? '',
     canc: /free/i.test(f.cancelacion ?? '') ? 1 : 0,
     libres: f.habitaciones_libres ?? f.habitacionesLibres ?? null,
     hist: (historiales[id] ?? []).map((p) => p.por_noche),
@@ -339,9 +346,9 @@ const ESTILOS = `
  */
 export function reporteHtml(filas, {
   busqueda, historiales = {}, generado = new Date(), preseleccion = {}, muestras = null,
-  fragmento = false, nombre = null,
+  fragmento = false, nombre = null, fotos = null,
 } = {}) {
-  const datos = filas.map((f) => filaParaWeb(f, historiales));
+  const datos = filas.map((f) => filaParaWeb(f, historiales, fotos));
   const noches = Number(busqueda?.los ?? 1);
   const moneda = busqueda?.moneda ?? '';
   const ciudad = busqueda?.ciudad ?? 'Agoda';
@@ -542,7 +549,7 @@ function pintar() {
 
     return '<tr>' +
       '<td class="der n" style="color:var(--muted)">' + (i + 1) + '</td>' +
-      '<td>' + (d.img ? '<img class="miniatura" loading="lazy" src="' + d.img + '" alt="">' : '<span class="miniatura"></span>') + '</td>' +
+      '<td>' + (d.img ? '<img class="miniatura" loading="lazy" decoding="async" src="' + d.img + '" alt="">' : '<span class="miniatura"></span>') + '</td>' +
       '<td class="der"><span class="precio">' + fmt(precioDe(d)) + '</span>' + segundo + '</td>' +
       '<td class="der">' + recargo + '</td>' +
       (VER_TOTAL ? '<td class="der n">' + fmt(d.total) + '</td>' : '') +

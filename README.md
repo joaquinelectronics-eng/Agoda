@@ -208,6 +208,23 @@ página los tildás y destildás como quieras.
   abras el archivo.
 - Tema claro y oscuro según el sistema.
 
+### Las fotos
+
+Las fotos se piden siempre como miniatura de 120px, no en el tamaño original: una
+tabla de 700 filas con las originales son unos 88 MB de descarga, y se ven vacías
+mientras cargan. Con miniaturas son 3,7 MB.
+
+```bash
+agoda reporte --fotos incrustadas --html reportes/hoy.html
+```
+
+`--fotos incrustadas` las mete adentro del HTML como `data:` URI. El archivo queda
+autónomo: pesa unos 4 MB pero anda sin internet, y es **la única forma de que se
+vean si publicás la página en algún lado que bloquee imágenes de otros dominios**
+(bastante común: las fotos de Agoda salen de `agoda.net` y `bstatic.com`).
+
+`--fotos ninguna` deja los recuadros vacíos y el archivo bien liviano.
+
 El botón **Mis filtros** vuelve a la preselección con la que generaste el archivo.
 
 ## El precio final
@@ -258,6 +275,7 @@ src/agoda.mjs     URL, resolución de destino, captura y repetición del pedido
 src/parse.mjs     JSON de Agoda -> filas planas
 src/db.mjs        SQLite: búsquedas, muestras, precios, evolución
 src/filtros.mjs   filtros, nota ajustada, orden por valor
+src/imagenes.mjs  miniaturas y fotos incrustadas
 src/salida.mjs    tabla de consola, CSV y reporte HTML
 src/comandos.mjs  los comandos del CLI
 ```
@@ -286,5 +304,5 @@ propio, apuntá `AGODA_CHROME` a su ejecutable.
 npm test
 ```
 
-31 tests sobre el parseo (con una respuesta real de Agoda como fixture), los
-filtros, el orden, las fechas y el cálculo de bajadas.
+35 tests sobre el parseo (con una respuesta real de Agoda como fixture), los
+filtros, el orden, las fechas, las miniaturas y el cálculo de bajadas.

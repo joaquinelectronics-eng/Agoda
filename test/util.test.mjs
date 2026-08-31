@@ -64,3 +64,32 @@ test('ajustarUrl respeta los filtros que ya trae la URL del usuario', () => {
   assert.equal(nueva.searchParams.get('hotelStarRating'), '4', 'no perdimos su filtro');
   assert.equal(nueva.searchParams.get('ds'), null, 'el token viejo se descarta');
 });
+
+// --- miniaturas -------------------------------------------------------------
+
+const { miniatura } = await import('../src/imagenes.mjs');
+
+test('las fotos de Agoda se piden en miniatura, no a tamano completo', () => {
+  const u = miniatura('https://pix8.agoda.net/hotelImages/1311/0/abc.jpeg');
+  assert.equal(new URL(u).searchParams.get('s'), '120x90');
+});
+
+test('la miniatura no pisa los parametros que ya traia la URL', () => {
+  const u = new URL(miniatura('https://pix8.agoda.net/hotelImages/2205/0/abc.jpg?ca=7&ce=1'));
+  assert.equal(u.searchParams.get('ca'), '7');
+  assert.equal(u.searchParams.get('ce'), '1');
+  assert.equal(u.searchParams.get('s'), '120x90');
+});
+
+test('bstatic codifica el tamano en la ruta', () => {
+  assert.match(miniatura('https://q-xx.bstatic.com/xdata/images/hotel/max500/1.jpg?k=a&o='), /\/max150\/1\.jpg\?k=a&o=$/);
+  assert.match(miniatura('https://q-xx.bstatic.com/xdata/images/hotel/square200/1.jpg'), /\/max150\//);
+  assert.match(miniatura('https://q-xx.bstatic.com/xdata/images/hotel/max500/1.jpg', 100), /\/max100\//);
+});
+
+test('un host desconocido o una URL rota se devuelven tal cual', () => {
+  assert.equal(miniatura('https://otro.cdn.com/foto.jpg'), 'https://otro.cdn.com/foto.jpg');
+  assert.equal(miniatura('no-es-una-url'), 'no-es-una-url');
+  assert.equal(miniatura(null), null);
+  assert.equal(miniatura(''), null);
+});

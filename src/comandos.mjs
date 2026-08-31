@@ -7,6 +7,7 @@ import { abrirNavegador } from './browser.mjs';
 import { construirUrl, leerUrl, ajustarUrl, resolverDestino, scrapear } from './agoda.mjs';
 import { filtrar, enriquecer, ordenar, parsearCoords, idsDeTipo } from './filtros.mjs';
 import * as OUT from './salida.mjs';
+import { miniatura, incrustar, avisoProxy } from './imagenes.mjs';
 import {
   c, log, warn, parseFecha, isoDate, num, sleep, haceCuanto, horaCorta,
   fmtPrecio, fmtPct, recortar, sparkline, normalizar,
@@ -464,6 +465,34 @@ function preseleccionar(filas, op) {
   return pre;
 }
 
+/**
+ * --fotos url (por defecto) deja las miniaturas apuntando al CDN de Agoda.
+ * --fotos incrustadas las baja y las mete adentro del HTML: el archivo queda
+ * autonomo (sirve sin internet, y es lo unico que funciona si lo publicas en
+ * algun lado que bloquee imagenes de otros dominios).
+ */
+async function resolverFotos(filas, op) {
+  const modo = normalizar(op.fotos ?? 'url');
+  if (modo === 'url') return null;
+  if (modo === 'ninguna' || modo === 'sin') return new Map();
+  if (modo !== 'incrustadas' && modo !== 'incrustar') {
+    throw new Error(`--fotos acepta: url, incrustadas o ninguna (recibi "${op.fotos}")`);
+  }
+
+  const aviso = avisoProxy();
+  if (aviso) log(aviso);
+
+  const urls = filas.map((f) => miniatura(f.imagen)).filter(Boolean);
+  log(c('gray', `  bajando ${new Set(urls).size} miniaturas...`));
+  const { fotos, total, fallidas, bytes } = await incrustar(urls, {
+    alProgreso: (hechas, cuantas) => process.stderr.write(c('gray', `\r  ${hechas}/${cuantas}   `)),
+  });
+  process.stderr.write('\r                              \r');
+  log(c('gray', `  ${total - fallidas}/${total} fotos incrustadas (${(bytes / 1e6).toFixed(1)} MB)` +
+    (fallidas ? `, ${fallidas} fallaron` : '')));
+  return fotos;
+}
+
 export async function cmdReporte(db, op, pos) {
   const busqueda = elegirBusqueda(db, op, pos);
   const snap = DB.ultimoSnapshot(db, busqueda.id);
@@ -475,9 +504,11 @@ export async function cmdReporte(db, op, pos) {
   const pre = preseleccionar(filas, op);
   const muestras = DB.listarSnapshots(db, busqueda.id, 999).length;
 
+  const fotos = await resolverFotos(filas, op);
+
   const ruta = op.html || `reportes/agoda-${busqueda.check_in}.html`;
   const destino = OUT.guardar(ruta, OUT.reporteHtml(filas, {
-    busqueda, historiales: historiales(db, busqueda.id, filas), preseleccion: pre, muestras,
+    busqueda, historiales: historiales(db, busqueda.id, filas), preseleccion: pre, muestras, fotos,
   }));
 
   log(`\n  Reporte con ${filas.length} alojamientos: ${c('bold', destino)}`);

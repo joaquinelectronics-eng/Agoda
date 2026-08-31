@@ -167,17 +167,18 @@ export function guardar(ruta, contenido) {
 const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
-/**
- * Reporte autocontenido: tabla ordenable y filtrable en el navegador,
- * con la curva de precio de cada alojamiento.
- */
-export function reporteHtml(filas, { busqueda, historiales = {}, generado = new Date() } = {}) {
-  const datos = filas.map((f) => ({
-    id: f.property_id ?? f.propertyId,
+/** Fila de la base -> objeto liviano para el navegador. */
+function filaParaWeb(f, historiales) {
+  const id = f.property_id ?? f.propertyId;
+  const final = f._precio ?? f.por_noche ?? f.porNoche ?? null;
+  const base = f.por_noche_sin_imp ?? f.porNocheSinImp ?? null;
+  return {
+    id,
     nombre: f.nombre,
-    precio: f._precio,
-    total: f.total,
-    inicial: f.precio_inicial ?? null,
+    final,                                   // por noche, impuestos y cargos incluidos
+    base,                                    // por noche, lo que Agoda muestra en la tarjeta
+    impPct: final != null && base ? ((final - base) / base) * 100 : null,
+    total: f.total ?? null,                  // toda la estadia, con impuestos
     min: f.minimo ?? null,
     max: f.maximo ?? null,
     bajadaPct: f._bajadaPct ?? null,
@@ -189,140 +190,464 @@ export function reporteHtml(filas, { busqueda, historiales = {}, generado = new 
     url: f.url ?? '',
     img: f.imagen ?? '',
     canc: /free/i.test(f.cancelacion ?? '') ? 1 : 0,
-    libres: f.habitaciones_libres ?? null,
-    dist: f._distancia ?? null,
-    hist: (historiales[f.property_id ?? f.propertyId] ?? []).map((p) => p.por_noche),
-  }));
+    libres: f.habitaciones_libres ?? f.habitacionesLibres ?? null,
+    hist: (historiales[id] ?? []).map((p) => p.por_noche),
+  };
+}
 
+const ESTILOS = `
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  /* Paleta clara completa. Los neutros tiran a azul, hacia el acento. */
+  :root{
+    --ground:#eceef1; --surface:#fbfcfd; --surface2:#f3f5f8;
+    --ink:#131820; --muted:#5f6875; --line:#dcdfe5; --line2:#c6cbd4;
+    --accent:#2f4dab; --accent-ink:#ffffff; --accent-soft:#e4e9f7;
+    --good:#0b6b3a;          /* precio final */
+    --markup:#8f5410;        /* el recargo que Agoda no muestra */
+    --markup-soft:#efdcc2;
+    --bad:#a52f22;           /* subio */
+    --focus:#2f4dab;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#0f1216; --surface:#171b21; --surface2:#1d222a;
+      --ink:#e9ecf1; --muted:#949daa; --line:#2a3038; --line2:#3b434e;
+      --accent:#8fa8ee; --accent-ink:#0f1216; --accent-soft:#1e2941;
+      --good:#52d38a; --markup:#e0a44e; --markup-soft:#3a2c17; --bad:#f08a7c;
+      --focus:#8fa8ee;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0f1216; --surface:#171b21; --surface2:#1d222a;
+    --ink:#e9ecf1; --muted:#949daa; --line:#2a3038; --line2:#3b434e;
+    --accent:#8fa8ee; --accent-ink:#0f1216; --accent-soft:#1e2941;
+    --good:#52d38a; --markup:#e0a44e; --markup-soft:#3a2c17; --bad:#f08a7c;
+    --focus:#8fa8ee;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font:400 14px/1.5 'Archivo', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .n{font-family:'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-variant-numeric:tabular-nums}
+  .cont{max-width:1560px; margin:0 auto; padding:0 22px}
+  :focus-visible{outline:2px solid var(--focus); outline-offset:2px; border-radius:4px}
+  @media (prefers-reduced-motion:reduce){ *{transition:none !important; animation:none !important} }
+
+  /* cabecera */
+  header{padding:26px 0 16px; display:flex; flex-direction:column; gap:5px}
+  h1{margin:0; font-size:24px; font-weight:700; letter-spacing:-.02em; text-wrap:balance}
+  .meta{color:var(--muted); font-size:13px}
+  .tesis{
+    margin-top:14px; padding:11px 14px; border-radius:9px;
+    background:var(--markup-soft); border:1px solid var(--line); color:var(--ink); font-size:13.5px;
+  }
+  .tesis b{color:var(--markup)}
+
+  /* consola de filtros */
+  .consola{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:15px 17px; margin:15px 0}
+  .grupo{display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:11px 0; border-top:1px solid var(--line)}
+  .grupo:first-child{padding-top:0; border-top:none}
+  .grupo:last-child{padding-bottom:0}
+  .rotulo{
+    width:100%; font-size:10.5px; font-weight:600; text-transform:uppercase;
+    letter-spacing:.09em; color:var(--muted); margin-bottom:1px;
+  }
+  .chip{
+    background:transparent; color:var(--ink); border:1px solid var(--line2); border-radius:999px;
+    padding:4px 12px; font:inherit; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:7px;
+    transition:border-color .12s, background .12s;
+  }
+  .chip:hover{border-color:var(--accent)}
+  .chip[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:500}
+  .chip .c{font-size:11px; opacity:.62; font-family:'IBM Plex Mono', ui-monospace, monospace}
+  .chip[aria-pressed="true"] .c{opacity:.8}
+  .escondido{display:none}
+  .textual{
+    background:none; border:none; color:var(--accent); font:inherit; font-size:13px;
+    cursor:pointer; padding:4px 2px; text-decoration:underline; text-underline-offset:3px;
+  }
+  .campo{font-size:11.5px; color:var(--muted); display:flex; flex-direction:column; gap:3px}
+  input[type=number],input[type=search]{
+    background:var(--surface2); color:var(--ink); border:1px solid var(--line2); border-radius:7px;
+    padding:6px 9px; font:inherit; font-size:13px;
+  }
+  input[type=number]{width:108px; font-family:'IBM Plex Mono', ui-monospace, monospace}
+  input[type=search]{width:210px}
+  .marca{display:inline-flex; align-items:center; gap:7px; font-size:13px; cursor:pointer}
+  .destacado{
+    background:var(--accent); border:1px solid var(--accent); color:var(--accent-ink); border-radius:8px;
+    padding:6px 14px; font:inherit; font-size:13px; font-weight:600; cursor:pointer;
+  }
+  .destacado:hover{filter:brightness(1.1)}
+  .selector{display:inline-flex; border:1px solid var(--line2); border-radius:8px; overflow:hidden}
+  .selector button{background:transparent; color:var(--muted); border:none; padding:6px 14px; font:inherit; font-size:13px; cursor:pointer}
+  .selector button[aria-pressed="true"]{background:var(--ink); color:var(--ground); font-weight:600}
+
+  /* resumen */
+  .resumen{display:flex; flex-wrap:wrap; gap:18px; align-items:baseline; margin:16px 2px 8px; font-size:13px; color:var(--muted)}
+  .resumen .grande{font-size:19px; font-weight:700; color:var(--ink); font-family:'IBM Plex Mono', ui-monospace, monospace}
+  .resumen .verde{color:var(--good); font-weight:600; font-family:'IBM Plex Mono', ui-monospace, monospace}
+
+  /* tabla */
+  .marco{overflow-x:auto; background:var(--surface); border:1px solid var(--line); border-radius:12px}
+  table{width:100%; border-collapse:collapse; font-size:13px; min-width:1000px}
+  th{
+    text-align:left; font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--muted); border-bottom:1px solid var(--line); padding:11px 12px; white-space:nowrap;
+    cursor:pointer; user-select:none; position:sticky; top:0; background:var(--surface); z-index:2;
+  }
+  th:hover{color:var(--ink)}
+  th.activa{color:var(--accent)}
+  th.der{text-align:right}
+  td{border-bottom:1px solid var(--line); padding:9px 12px; vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tbody tr:hover td{background:var(--surface2)}
+  .der{text-align:right}
+  .precio{font-family:'IBM Plex Mono', ui-monospace, monospace; font-size:17px; font-weight:600; color:var(--good); font-variant-numeric:tabular-nums}
+  .sombra{color:var(--muted); font-size:11.5px; font-family:'IBM Plex Mono', ui-monospace, monospace; margin-top:1px}
+  .recargo{display:flex; flex-direction:column; align-items:flex-end; gap:3px}
+  .recargo .pct{color:var(--markup); font-size:12.5px; font-weight:600; font-family:'IBM Plex Mono', ui-monospace, monospace}
+  .barra{height:3px; border-radius:2px; background:var(--markup); opacity:.85}
+  .baja{color:var(--good); font-weight:600} .sube{color:var(--bad); font-weight:600}
+  .plano{color:var(--muted)}
+  .evol{display:flex; align-items:center; gap:8px; justify-content:flex-end}
+  .nota{font-family:'IBM Plex Mono', ui-monospace, monospace; font-weight:600; font-size:14px}
+  .miniatura{width:58px; height:44px; object-fit:cover; border-radius:6px; background:var(--surface2); display:block}
+  a{color:var(--accent); text-decoration:none}
+  a:hover{text-decoration:underline; text-underline-offset:2px}
+  .etiqueta{
+    display:inline-block; font-size:10.5px; color:var(--muted); border:1px solid var(--line2);
+    border-radius:999px; padding:0 8px; margin-left:7px; white-space:nowrap; vertical-align:1px;
+  }
+  .etiqueta.buena{color:var(--good); border-color:var(--good)}
+  .nada{padding:52px 20px; text-align:center; color:var(--muted)}
+  footer{color:var(--muted); font-size:12px; padding:20px 2px 44px; line-height:1.75; max-width:80ch}
+  @media (max-width:640px){
+    .cont{padding:0 13px} h1{font-size:19px} input[type=search]{width:100%}
+  }
+</style>`;
+
+/**
+ * Reporte autocontenido: filtros de verdad (tipo y zona se eligen de a varios),
+ * precio final con impuestos, y la curva de precio de cada alojamiento.
+ * `preseleccion` deja los filtros ya marcados al abrir, sin sacar datos de la tabla.
+ * `fragmento: true` devuelve solo el contenido, sin <html>/<head>/<body>.
+ */
+export function reporteHtml(filas, {
+  busqueda, historiales = {}, generado = new Date(), preseleccion = {}, muestras = null,
+  fragmento = false, nombre = null,
+} = {}) {
+  const datos = filas.map((f) => filaParaWeb(f, historiales));
   const noches = Number(busqueda?.los ?? 1);
-  const verTotal = noches > 1;
-  const titulo = busqueda
-    ? `${busqueda.ciudad ?? 'Agoda'} · ${busqueda.check_in ?? busqueda.checkIn} · ${noches} noche${noches > 1 ? 's' : ''}`
-    : 'Agoda';
+  const moneda = busqueda?.moneda ?? '';
+  const ciudad = busqueda?.ciudad ?? 'Agoda';
+  const fecha = busqueda?.check_in ?? busqueda?.checkIn ?? '';
+  const huespedes = busqueda?.adultos ?? 2;
+  const titulo = `${ciudad} · ${fecha} · ${noches} noche${noches > 1 ? 's' : ''}`;
+
+  // Cuanto esconde el recargo, para poder decirlo con numeros propios.
+  const conRecargo = datos.filter((d) => d.impPct != null && d.impPct > 0.5);
+  const recargoMax = conRecargo.length ? Math.max(...conRecargo.map((d) => d.impPct)) : 0;
+
+  const contar = (clave) => {
+    const m = new Map();
+    for (const d of datos) {
+      const v = d[clave];
+      if (v == null || v === '') continue;
+      m.set(v, (m.get(v) ?? 0) + 1);
+    }
+    return [...m.entries()].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]), 'es'));
+  };
+  const tipos = contar('tipo');
+  const zonas = contar('zona');
+
+  const estadoInicial = {
+    tipos: preseleccion.tipos ?? [],
+    zonas: preseleccion.zonas ?? [],
+    max: preseleccion.max ?? null,
+    nota: preseleccion.minNota ?? null,
+    reviews: preseleccion.minReviews ?? null,
+    canc: preseleccion.cancelacionGratis ?? false,
+    baja: false,
+    texto: '',
+    conImpuestos: true,
+    orden: 'final',
+    asc: true,
+  };
+
+  const chips = (lista, grupo) => lista.map(([valor, n]) =>
+    `<button type="button" class="chip" data-grupo="${grupo}" data-valor="${escHtml(valor)}" aria-pressed="false">` +
+    `${escHtml(valor)}<span class="c">${n}</span></button>`).join('');
+
+  const CUERPO = `
+<div class="cont">
+<header>
+  <h1>${escHtml(titulo)}</h1>
+  <div class="meta">${escHtml(String(huespedes))} huéspedes · ${datos.length} alojamientos${muestras ? ` · ${muestras} muestras de precio` : ''} · datos del ${escHtml(generado.toLocaleString('es-AR'))}</div>
+  <div class="tesis">Agoda muestra en sus tarjetas el precio <b>sin impuestos</b>. Acá el orden es por
+  <b>precio final</b>${recargoMax > 1 ? `, y el recargo llega al <b>${recargoMax.toFixed(0)}%</b> en esta búsqueda` : ''}:
+  el que parece más barato muchas veces no lo es.</div>
+</header>
+
+<div class="consola">
+  <div class="grupo">
+    <button type="button" class="destacado" id="preset">Mis filtros</button>
+    <button type="button" class="textual" id="limpiar">Limpiar todo</button>
+    <span style="flex:1"></span>
+    <div class="selector" role="group" aria-label="Qué precio usar">
+      <button type="button" id="mFinal" aria-pressed="true">Precio final</button>
+      <button type="button" id="mBase" aria-pressed="false">Como lo muestra Agoda</button>
+    </div>
+  </div>
+
+  <div class="grupo"><span class="rotulo">Tipo de alojamiento</span>${chips(tipos, 'tipos')}</div>
+
+  <div class="grupo" id="filaZonas"><span class="rotulo">Zona</span>${chips(zonas, 'zonas')}
+    ${zonas.length > 14 ? '<button type="button" class="textual" id="verZonas">ver todas</button>' : ''}</div>
+
+  <div class="grupo">
+    <span class="rotulo">Acotar</span>
+    <label class="campo">precio final máx<input type="number" id="fmax" placeholder="sin tope"></label>
+    <label class="campo">nota mín<input type="number" id="fnota" step="0.1" placeholder="0"></label>
+    <label class="campo">reviews mín<input type="number" id="frev" placeholder="0"></label>
+    <label class="campo">buscar por nombre<input type="search" id="ftexto" placeholder="ej: palermo soho"></label>
+    <label class="marca"><input type="checkbox" id="fcanc"> cancelación gratis</label>
+    <label class="marca"><input type="checkbox" id="fbaja"> solo los que bajaron</label>
+  </div>
+</div>
+
+<div class="resumen" id="resumen"></div>
+
+<div class="marco"><table><thead><tr>
+  <th class="der" data-k="_i">#</th><th></th>
+  <th class="der activa" data-k="final">precio final ▲</th>
+  <th class="der" data-k="impPct">recargo oculto</th>
+  ${noches > 1 ? '<th class="der" data-k="total">total ' + noches + 'n</th>' : ''}
+  <th class="der" data-k="bajadaPct">evolución</th>
+  <th class="der" data-k="nota">nota</th>
+  <th data-k="tipo">tipo</th><th data-k="zona">zona</th><th data-k="nombre">alojamiento</th>
+</tr></thead><tbody id="cuerpo"></tbody></table>
+<div class="nada" id="nada" hidden>Ningún alojamiento coincide con estos filtros.</div></div>
+
+<footer>
+  Precio final = por habitación por noche, con impuestos y cargos de Agoda incluidos. Puede haber
+  extras que el alojamiento cobre en el momento y que Agoda no informe acá.<br>
+  Los precios se mueven durante el día: una bajada chica puede ser ruido, una sostenida es real.
+  Verificá siempre en Agoda antes de reservar.
+</footer>
+</div>`;
+
+  const GUION = `
+<script>
+var DATOS = ${JSON.stringify(datos)};
+var MONEDA = ${JSON.stringify(moneda)};
+var VER_TOTAL = ${noches > 1};
+var RECARGO_MAX = ${recargoMax.toFixed(2)};
+var PRESET = ${JSON.stringify({ tipos: estadoInicial.tipos, zonas: estadoInicial.zonas })};
+var CLAVE = 'agoda-filtros-' + ${JSON.stringify(String(busqueda?.id ?? 'x') + '-' + fecha)};
+
+var VACIO = { tipos:[], zonas:[], max:null, nota:null, reviews:null, canc:false, baja:false, texto:'', conImpuestos:true, orden:'final', asc:true };
+var estado = Object.assign({}, VACIO, ${JSON.stringify(estadoInicial)});
+
+try {
+  var guardado = localStorage.getItem(CLAVE);
+  if (guardado) estado = Object.assign(estado, JSON.parse(guardado));
+} catch (e) { /* modo privado o storage bloqueado: seguimos con lo que vino */ }
+
+function guardar() { try { localStorage.setItem(CLAVE, JSON.stringify(estado)); } catch (e) {} }
+
+function $(id) { return document.getElementById(id); }
+function norm(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase(); }
+function fmt(n) {
+  if (n == null) return '';
+  return n.toLocaleString('es-AR', { maximumFractionDigits: Math.abs(n) >= 1000 ? 0 : 2 });
+}
+function precioDe(d) { return estado.conImpuestos ? d.final : d.base; }
+
+function curva(h) {
+  if (!h || h.length < 2) return '';
+  var w = 58, ht = 16, mn = Math.min.apply(null, h), mx = Math.max.apply(null, h), r = (mx - mn) || 1;
+  var d = h.map(function (v, i) {
+    var x = (i / (h.length - 1)) * w, y = ht - ((v - mn) / r) * (ht - 3) - 1.5;
+    return (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
+  }).join(' ');
+  var fin = h[h.length - 1];
+  var col = fin < h[0] ? 'var(--good)' : fin > h[0] ? 'var(--bad)' : 'var(--muted)';
+  var ux = w, uy = ht - ((fin - mn) / r) * (ht - 3) - 1.5;
+  return '<svg width="' + w + '" height="' + ht + '" aria-hidden="true">' +
+    '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="1.5" stroke-linejoin="round"/>' +
+    '<circle cx="' + (ux - 1) + '" cy="' + uy.toFixed(1) + '" r="1.8" fill="' + col + '"/></svg>';
+}
+
+function filtrados() {
+  return DATOS.filter(function (d) {
+    var p = precioDe(d);
+    if (estado.tipos.length && estado.tipos.indexOf(d.tipo) < 0) return false;
+    if (estado.zonas.length && estado.zonas.indexOf(d.zona) < 0) return false;
+    if (estado.max != null && (p == null || p > estado.max)) return false;
+    if (estado.nota != null && (d.nota == null || d.nota < estado.nota)) return false;
+    if (estado.reviews != null && d.reviews < estado.reviews) return false;
+    if (estado.canc && d.canc !== 1) return false;
+    if (estado.baja && !(d.bajadaPct != null && d.bajadaPct < -0.5)) return false;
+    if (estado.texto && norm(d.nombre).indexOf(norm(estado.texto)) < 0) return false;
+    return true;
+  });
+}
+
+function pintar() {
+  var f = filtrados();
+  var k = (estado.orden === 'final' && !estado.conImpuestos) ? 'base' : estado.orden;
+  f.sort(function (a, b) {
+    var x = a[k], y = b[k];
+    if (typeof x === 'string' || typeof y === 'string') {
+      return String(x == null ? '' : x).localeCompare(String(y == null ? '' : y), 'es') * (estado.asc ? 1 : -1);
+    }
+    if (x == null) return 1;
+    if (y == null) return -1;
+    return (x - y) * (estado.asc ? 1 : -1);
+  });
+
+  var barato = null, ahorro = 0;
+  for (var i = 0; i < f.length; i++) {
+    var p = precioDe(f[i]);
+    if (p != null && (barato == null || p < barato)) barato = p;
+    if (f[i].impPct != null && f[i].impPct > ahorro) ahorro = f[i].impPct;
+  }
+  $('resumen').innerHTML =
+    '<span><span class="grande">' + f.length + '</span> de ' + DATOS.length + ' alojamientos</span>' +
+    (barato != null ? '<span>más barato <span class="verde">' + fmt(barato) + ' ' + MONEDA + '</span></span>' : '') +
+    (ahorro > 1 ? '<span>recargo más alto acá: <span class="n" style="color:var(--markup);font-weight:600">+' + ahorro.toFixed(0) + '%</span></span>' : '');
+
+  $('cuerpo').innerHTML = f.map(function (d, i) {
+    var b = d.bajadaPct;
+    var clase = b == null ? '' : b < -0.5 ? 'baja' : b > 0.5 ? 'sube' : 'plano';
+    var etiquetas = '';
+    if (d.canc) etiquetas += '<span class="etiqueta buena">cancelación gratis</span>';
+    if (d.libres != null && d.libres <= 3) etiquetas += '<span class="etiqueta">' + (d.libres === 1 ? 'queda 1' : 'quedan ' + d.libres) + '</span>';
+
+    var recargo = '<span style="color:var(--muted)">—</span>';
+    if (d.impPct != null && d.impPct > 0.5) {
+      var ancho = Math.max(6, Math.min(54, (d.impPct / (RECARGO_MAX || 30)) * 54));
+      recargo = '<span class="recargo"><span class="pct">+' + d.impPct.toFixed(0) + '%</span>' +
+                '<span class="barra" style="width:' + ancho.toFixed(0) + 'px"></span></span>';
+    }
+
+    var segundo = '';
+    if (estado.conImpuestos && d.base != null && d.base !== d.final) segundo = '<div class="sombra">Agoda: ' + fmt(d.base) + '</div>';
+    else if (!estado.conImpuestos && d.final != null && d.base !== d.final) segundo = '<div class="sombra">real: ' + fmt(d.final) + '</div>';
+
+    return '<tr>' +
+      '<td class="der n" style="color:var(--muted)">' + (i + 1) + '</td>' +
+      '<td>' + (d.img ? '<img class="miniatura" loading="lazy" src="' + d.img + '" alt="">' : '<span class="miniatura"></span>') + '</td>' +
+      '<td class="der"><span class="precio">' + fmt(precioDe(d)) + '</span>' + segundo + '</td>' +
+      '<td class="der">' + recargo + '</td>' +
+      (VER_TOTAL ? '<td class="der n">' + fmt(d.total) + '</td>' : '') +
+      '<td class="der"><span class="evol">' + curva(d.hist) +
+        '<span class="n ' + clase + '">' + (b == null ? '' : (b > 0 ? '+' : '') + b.toFixed(0) + '%') + '</span></span></td>' +
+      '<td class="der"><span class="nota">' + (d.nota == null ? '–' : d.nota.toFixed(1)) + '</span>' +
+        (d.reviews ? '<div class="sombra">' + d.reviews + '</div>' : '') + '</td>' +
+      '<td style="color:var(--muted)">' + d.tipo + '</td><td>' + d.zona + '</td>' +
+      '<td>' + (d.url ? '<a href="' + d.url + '" target="_blank" rel="noopener">' + d.nombre + '</a>' : d.nombre) + etiquetas + '</td>' +
+    '</tr>';
+  }).join('');
+
+  $('nada').hidden = f.length > 0;
+  guardar();
+}
+
+function sincronizar() {
+  var chips = document.querySelectorAll('.chip');
+  for (var i = 0; i < chips.length; i++) {
+    var ch = chips[i];
+    var sel = estado[ch.dataset.grupo].indexOf(ch.dataset.valor) >= 0;
+    ch.setAttribute('aria-pressed', sel ? 'true' : 'false');
+    if (sel) ch.classList.remove('escondido');   // una zona elegida nunca queda tapada
+  }
+  $('fmax').value = estado.max == null ? '' : estado.max;
+  $('fnota').value = estado.nota == null ? '' : estado.nota;
+  $('frev').value = estado.reviews == null ? '' : estado.reviews;
+  $('ftexto').value = estado.texto;
+  $('fcanc').checked = estado.canc;
+  $('fbaja').checked = estado.baja;
+  $('mFinal').setAttribute('aria-pressed', estado.conImpuestos ? 'true' : 'false');
+  $('mBase').setAttribute('aria-pressed', estado.conImpuestos ? 'false' : 'true');
+}
+
+document.querySelectorAll('.chip').forEach(function (ch) {
+  ch.addEventListener('click', function () {
+    var g = ch.dataset.grupo, v = ch.dataset.valor, i = estado[g].indexOf(v);
+    if (i < 0) estado[g].push(v); else estado[g].splice(i, 1);
+    sincronizar(); pintar();
+  });
+});
+
+function numeroDe(el) { var v = parseFloat(el.value); return isNaN(v) ? null : v; }
+$('fmax').addEventListener('input', function () { estado.max = numeroDe(this); pintar(); });
+$('fnota').addEventListener('input', function () { estado.nota = numeroDe(this); pintar(); });
+$('frev').addEventListener('input', function () { estado.reviews = numeroDe(this); pintar(); });
+$('ftexto').addEventListener('input', function () { estado.texto = this.value; pintar(); });
+$('fcanc').addEventListener('change', function () { estado.canc = this.checked; pintar(); });
+$('fbaja').addEventListener('change', function () { estado.baja = this.checked; pintar(); });
+$('mFinal').addEventListener('click', function () { estado.conImpuestos = true; sincronizar(); pintar(); });
+$('mBase').addEventListener('click', function () { estado.conImpuestos = false; sincronizar(); pintar(); });
+
+$('preset').addEventListener('click', function () {
+  estado.tipos = PRESET.tipos.slice();
+  estado.zonas = PRESET.zonas.slice();
+  sincronizar(); pintar();
+});
+$('limpiar').addEventListener('click', function () {
+  estado = Object.assign({}, VACIO, { conImpuestos: estado.conImpuestos, orden: estado.orden, asc: estado.asc });
+  sincronizar(); pintar();
+});
+
+var verZonas = $('verZonas');
+if (verZonas) {
+  var todas = [].slice.call(document.querySelectorAll('#filaZonas .chip'));
+  var plegado = true;
+  var plegar = function () {
+    todas.forEach(function (ch, i) {
+      var tapar = plegado && i >= 14 && ch.getAttribute('aria-pressed') !== 'true';
+      ch.classList.toggle('escondido', tapar);
+    });
+    verZonas.textContent = plegado ? 'ver todas' : 'ver menos';
+  };
+  plegar();
+  verZonas.addEventListener('click', function () { plegado = !plegado; plegar(); });
+}
+
+document.querySelectorAll('th[data-k]').forEach(function (th) {
+  th.addEventListener('click', function () {
+    var k = th.dataset.k;
+    if (k === '_i') return;
+    if (estado.orden === k) estado.asc = !estado.asc;
+    else { estado.orden = k; estado.asc = ['nota', 'bajadaPct', 'impPct'].indexOf(k) < 0; }
+    document.querySelectorAll('th[data-k]').forEach(function (x) {
+      x.classList.remove('activa');
+      x.textContent = x.textContent.replace(/ [▲▼]$/, '');
+    });
+    th.classList.add('activa');
+    th.textContent += estado.asc ? ' ▲' : ' ▼';
+    pintar();
+  });
+});
+
+sincronizar();
+pintar();
+</script>`;
+
+  if (fragmento) return `<title>${escHtml(nombre ?? titulo)}</title>${ESTILOS}${CUERPO}${GUION}`;
 
   return `<!doctype html>
 <html lang="es"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${escHtml(titulo)} — precios Agoda</title>
-<style>
-  :root{ --bg:#f7f7f5; --card:#fff; --tx:#1c1c1a; --mut:#6b6b66; --bd:#e4e4e0; --ok:#0a7d43; --bad:#b3261e; --ac:#2b6cb0; }
-  @media (prefers-color-scheme:dark){ :root{ --bg:#16161a; --card:#1e1e24; --tx:#ececea; --mut:#9a9a95; --bd:#32323a; --ok:#4ade80; --bad:#f87171; --ac:#7cb0e8; } }
-  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-  header{padding:20px 24px 12px;max-width:1400px;margin:0 auto}
-  h1{font-size:20px;margin:0 0 4px} .sub{color:var(--mut);font-size:13px}
-  .barra{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--bd);padding:12px 24px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-  .barra label{font-size:12px;color:var(--mut);display:flex;flex-direction:column;gap:3px}
-  input,select{background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:5px 8px;font:inherit;font-size:13px}
-  input[type=number]{width:96px} input[type=search]{width:190px}
-  .wrap{max-width:1400px;margin:0 auto;padding:0 24px 48px;overflow-x:auto}
-  table{width:100%;border-collapse:collapse;font-size:13px;min-width:900px}
-  th{text-align:left;font-weight:600;color:var(--mut);border-bottom:1px solid var(--bd);padding:8px 10px;cursor:pointer;white-space:nowrap;user-select:none}
-  th:hover{color:var(--tx)} th.on{color:var(--ac)}
-  td{border-bottom:1px solid var(--bd);padding:8px 10px;vertical-align:middle}
-  tr:hover td{background:var(--card)}
-  .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-  .precio{font-weight:600;color:var(--ok);font-size:15px}
-  .baja{color:var(--ok);font-weight:600} .sube{color:var(--bad)}
-  .th{width:54px;height:40px;object-fit:cover;border-radius:5px;background:var(--bd)}
-  a{color:var(--ac);text-decoration:none} a:hover{text-decoration:underline}
-  .chip{display:inline-block;font-size:11px;color:var(--mut);border:1px solid var(--bd);border-radius:99px;padding:1px 7px;margin-left:6px}
-  .vacio{padding:40px;text-align:center;color:var(--mut)}
-  footer{max-width:1400px;margin:0 auto;padding:0 24px 32px;color:var(--mut);font-size:12px}
-</style></head><body>
-<header><h1>${escHtml(titulo)}</h1>
-<div class="sub">${datos.length} alojamientos · generado ${escHtml(generado.toLocaleString('es-AR'))}${busqueda?.moneda ? ` · precios por noche en ${escHtml(busqueda.moneda)}` : ''}</div></header>
-<div class="barra">
-  <label>precio máx<input type="number" id="fmax" placeholder="sin tope"></label>
-  <label>nota mín<input type="number" id="fnota" step="0.1" placeholder="0"></label>
-  <label>reviews mín<input type="number" id="frev" placeholder="0"></label>
-  <label>tipo<select id="ftipo"><option value="">todos</option></select></label>
-  <label>zona<select id="fzona"><option value="">todas</option></select></label>
-  <label>buscar<input type="search" id="ftexto" placeholder="nombre..."></label>
-  <label>&nbsp;<span><input type="checkbox" id="fcanc"> solo cancelación gratis</span></label>
-  <label>&nbsp;<span><input type="checkbox" id="fbaja"> solo los que bajaron</span></label>
-</div>
-<div class="wrap"><table id="t"><thead><tr>
-  <th data-k="_i" class="num">#</th><th></th>
-  <th data-k="precio" class="num on">precio ▲</th>
-  ${verTotal ? `<th data-k="total" class="num">total ${noches}n</th>` : ''}
-  <th data-k="bajadaPct" class="num">bajó</th>
-  <th data-k="_hist">historial</th>
-  <th data-k="nota" class="num">nota</th>
-  <th data-k="reviews" class="num">reviews</th>
-  <th data-k="tipo">tipo</th><th data-k="zona">zona</th><th data-k="nombre">alojamiento</th>
-</tr></thead><tbody id="b"></tbody></table><div class="vacio" id="vacio" hidden>Nada coincide con los filtros.</div></div>
-<footer>Datos extraídos de Agoda. Los precios cambian solos: verificá siempre en el sitio antes de reservar.</footer>
-<script>
-const DATOS = ${JSON.stringify(datos)};
-const VER_TOTAL = ${verTotal};
-const $ = (id) => document.getElementById(id);
-const norm = (s) => String(s ?? '').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();
-
-for (const [sel, campo] of [['ftipo','tipo'],['fzona','zona']]) {
-  const vals = [...new Set(DATOS.map(d => d[campo]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
-  for (const v of vals) { const o = document.createElement('option'); o.value = v; o.textContent = v; $(sel).append(o); }
-}
-
-let orden = 'precio', asc = true;
-function spark(h){
-  if(!h || h.length < 2) return '';
-  const w=70,ht=18,mn=Math.min(...h),mx=Math.max(...h),r=(mx-mn)||1;
-  const pts=h.map((v,i)=>[(i/(h.length-1))*w, ht-((v-mn)/r)*(ht-3)-1.5]);
-  const d=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
-  const col=h.at(-1)<h[0]?'var(--ok)':h.at(-1)>h[0]?'var(--bad)':'var(--mut)';
-  return '<svg width="'+w+'" height="'+ht+'" aria-hidden="true"><path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="1.5"/></svg>';
-}
-const fmt = (n) => n==null ? '' : n.toLocaleString('es-AR',{maximumFractionDigits: Math.abs(n)>=1000?0:2});
-
-function pintar(){
-  const max=parseFloat($('fmax').value), nota=parseFloat($('fnota').value), rev=parseFloat($('frev').value);
-  const tipo=$('ftipo').value, zona=$('fzona').value, txt=norm($('ftexto').value);
-  const canc=$('fcanc').checked, baja=$('fbaja').checked;
-  let f = DATOS.filter(d =>
-    (isNaN(max) || (d.precio!=null && d.precio<=max)) &&
-    (isNaN(nota) || (d.nota!=null && d.nota>=nota)) &&
-    (isNaN(rev) || d.reviews>=rev) &&
-    (!tipo || d.tipo===tipo) && (!zona || d.zona===zona) &&
-    (!txt || norm(d.nombre).includes(txt)) &&
-    (!canc || d.canc===1) && (!baja || (d.bajadaPct!=null && d.bajadaPct < -0.5)));
-  f.sort((a,b)=>{
-    let x=a[orden], y=b[orden];
-    if(typeof x==='string'||typeof y==='string') return String(x??'').localeCompare(String(y??''),'es')*(asc?1:-1);
-    if(x==null) return 1; if(y==null) return -1;
-    return (x-y)*(asc?1:-1);
-  });
-  $('b').innerHTML = f.map((d,i)=>{
-    const b = d.bajadaPct;
-    const cls = b==null?'':b<-0.5?'baja':b>0.5?'sube':'';
-    return '<tr>'+
-      '<td class="num">'+(i+1)+'</td>'+
-      '<td>'+(d.img?'<img class="th" loading="lazy" src="'+d.img+'" alt="">':'<div class="th"></div>')+'</td>'+
-      '<td class="num precio">'+fmt(d.precio)+'</td>'+
-      (VER_TOTAL ? '<td class="num">'+fmt(d.total)+'</td>' : '')+
-      '<td class="num '+cls+'">'+(b==null?'':(b>0?'+':'')+b.toFixed(0)+'%')+'</td>'+
-      '<td>'+spark(d.hist)+'</td>'+
-      '<td class="num">'+(d.nota==null?'':d.nota.toFixed(1))+'</td>'+
-      '<td class="num">'+(d.reviews||'')+'</td>'+
-      '<td>'+d.tipo+'</td><td>'+d.zona+'</td>'+
-      '<td>'+(d.url?'<a href="'+d.url+'" target="_blank" rel="noopener">'+d.nombre+'</a>':d.nombre)+
-        (d.canc?'<span class="chip">cancelación gratis</span>':'')+
-        (d.libres!=null&&d.libres<=3?'<span class="chip">quedan '+d.libres+'</span>':'')+'</td>'+
-    '</tr>';
-  }).join('');
-  $('vacio').hidden = f.length>0;
-}
-document.querySelectorAll('th[data-k]').forEach(th=>th.addEventListener('click',()=>{
-  const k=th.dataset.k; if(k==='_i'||k==='_hist') return;
-  if(orden===k) asc=!asc; else { orden=k; asc = !['nota','reviews'].includes(k); }
-  document.querySelectorAll('th').forEach(x=>{x.classList.remove('on');x.textContent=x.textContent.replace(/ [▲▼]$/,'')});
-  th.classList.add('on'); th.textContent += asc?' ▲':' ▼';
-  pintar();
-}));
-['fmax','fnota','frev','ftipo','fzona','ftexto','fcanc','fbaja'].forEach(id=>{
-  $(id).addEventListener('input', pintar); $(id).addEventListener('change', pintar);
-});
-pintar();
-</script></body></html>`;
+<title>${escHtml(titulo)} — precio final Agoda</title>
+${ESTILOS}
+</head><body>${CUERPO}${GUION}</body></html>`;
 }
 
 export { sparkline, haceCuanto };

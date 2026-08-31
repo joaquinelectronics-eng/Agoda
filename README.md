@@ -88,8 +88,19 @@ agoda reporte --html reportes/hoy.html
 ```
 
 `--paginas` importa: los resultados vienen **ordenados por precio ascendente desde
-Agoda**, así que 3 páginas son los 300 alojamientos más baratos de la ciudad. Para
-una ciudad chica alcanza con 1; si querés el inventario entero, subilo.
+Agoda**, así que 3 páginas son los 300 alojamientos más baratos de la ciudad.
+
+**Si te interesan barrios caros, usá `--paginas todas`.** Con las 3 páginas por
+defecto, Núñez aparece con 0 alojamientos y Belgrano con 1, simplemente porque no
+entran entre los 300 más baratos. Con `todas` (para en cuanto no hay más) Buenos
+Aires trae 774 alojamientos y esos barrios quedan bien representados:
+
+| | 3 páginas | `--paginas todas` |
+| --- | --- | --- |
+| Núñez | 0 | 9 |
+| Belgrano | 1 | 34 |
+| Palermo | 7 | 186 |
+| Recoleta | 4 | 75 |
 
 ### Filtros
 
@@ -175,15 +186,47 @@ agoda bajadas --desde 4            # solo lo que pasó en las últimas 4 horas
 agoda historial "Alohouse"         # la curva de uno en particular
 ```
 
-## Reporte HTML
+## La página interactiva
 
 ```bash
-agoda reporte --html reportes/hoy.html
+agoda reporte --tipo depto,casa --zona nunez,belgrano,palermo,recoleta --html reportes/hoy.html
 ```
 
-Un archivo solo, sin dependencias, que abrís en el navegador: tabla ordenable por
-cualquier columna, filtros en vivo, la curva de precio de cada alojamiento y el
-link directo a Agoda. Se adapta a tema claro y oscuro.
+Un archivo solo, sin dependencias, que abrís en el navegador. Los filtros que le
+pasás **no recortan la tabla**: dejan los chips ya marcados al abrir, y desde la
+página los tildás y destildás como quieras.
+
+- **Tipo y zona se eligen de a varios.** Chips con la cantidad de cada uno, así
+  que podés marcar depto + casa, o Núñez + Belgrano + Palermo + Recoleta.
+- **Precio final vs. el que muestra Agoda.** Un botón cambia entre los dos, y el
+  orden cambia con él. Debajo de cada precio aparece el otro, para comparar.
+- **Columna de recargo oculto**, con barra: se ve de un vistazo cuánto le suma
+  Agoda a cada uno arriba del precio que publica.
+- Precio máximo, nota mínima, reviews mínimas, cancelación gratis, solo los que
+  bajaron, búsqueda por nombre.
+- Ordena por cualquier columna, y **se acuerda de tus filtros** la próxima vez que
+  abras el archivo.
+- Tema claro y oscuro según el sistema.
+
+El botón **Mis filtros** vuelve a la preselección con la que generaste el archivo.
+
+## El precio final
+
+Agoda muestra en sus tarjetas el precio **sin impuestos** — la tarjeta lo dice con
+todas las letras: *"Por noche sin impuestos"*. El recargo va del 0% al 30% según
+la propiedad, así que **su orden por precio no sirve para comparar**:
+
+| Alojamiento | Agoda muestra | Precio real |
+| --- | --- | --- |
+| Noa Noa by Babel | 34,96 | **45,31** (+30%) |
+| Departamento de Recoleta | 35,15 | **38,15** (+9%) |
+
+Ordenados como los muestra Agoda, Noa Noa aparece primero. Por precio final, es
+más caro. Esta herramienta guarda los dos números (`por_noche` y
+`por_noche_sin_imp`) y ordena siempre por el final.
+
+Ojo: puede haber cargos que el alojamiento cobre en el momento y que Agoda no
+informe en el listado. El precio final es "todo lo que le pagás a Agoda".
 
 ## Usar tu propia URL de Agoda
 

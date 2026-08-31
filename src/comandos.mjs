@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import * as DB from './db.mjs';
 import { abrirNavegador } from './browser.mjs';
 import { construirUrl, leerUrl, ajustarUrl, resolverDestino, scrapear } from './agoda.mjs';
-import { filtrar, enriquecer, ordenar, parsearCoords } from './filtros.mjs';
+import { filtrar, enriquecer, ordenar, parsearCoords, idsDeTipo } from './filtros.mjs';
 import * as OUT from './salida.mjs';
 import {
   c, log, warn, parseFecha, isoDate, num, sleep, haceCuanto, horaCorta,
@@ -15,6 +15,16 @@ import {
 // --- helpers compartidos ----------------------------------------------------
 
 const huella = (s) => createHash('sha1').update(String(s)).digest('hex').slice(0, 10);
+
+const TOPE_PAGINAS = 30; // 3000 alojamientos: mas que el inventario de cualquier ciudad
+
+/** --paginas acepta un numero o "todas" (pagina hasta que no haya mas). */
+function paginasPedidas(op, porDefecto = 3) {
+  if (op.paginas === undefined) return porDefecto;
+  const s = normalizar(op.paginas);
+  if (s === 'todas' || s === 'todo' || s === 'all') return TOPE_PAGINAS;
+  return Math.max(1, num(op.paginas, porDefecto));
+}
 
 function opcionesBusqueda(op) {
   return {
@@ -154,7 +164,7 @@ export async function cmdBuscar(db, op, pos) {
   try {
     ctx = await armarBusqueda(db, page, op, pos);
     log(c('gray', `  buscando: ${ctx.url}`));
-    datos = await scrapear(page, ctx.url, { paginas: num(op.paginas, 3) });
+    datos = await scrapear(page, ctx.url, { paginas: paginasPedidas(op) });
   } finally {
     await cerrar();
   }
@@ -301,7 +311,7 @@ export async function cmdSeguir(db, op, pos) {
     const { page, cerrar } = await abrirNavegador({ headful: op.headful === true });
     try {
       ctx = await armarBusqueda(db, page, op, pos);
-      datos = await scrapear(page, ctx.url, { paginas: num(op.paginas, 3), verboso: false });
+      datos = await scrapear(page, ctx.url, { paginas: paginasPedidas(op), verboso: false });
     } catch (e) {
       warn(`muestra ${i} fallo: ${e.message}`);
       await cerrar();
@@ -421,18 +431,59 @@ function avisar(ch, busqueda, comando) {
 
 // --- reporte / listados -----------------------------------------------------
 
+/**
+ * Los filtros que se pasan al reporte no recortan la tabla: dejan los chips
+ * marcados al abrir, para que se puedan destildar desde la pagina.
+ */
+function preseleccionar(filas, op) {
+  const pre = {
+    tipos: [], zonas: [],
+    max: num(op.max), minNota: num(op['min-nota']), minReviews: num(op['min-reviews']),
+    cancelacionGratis: op['cancelacion-gratis'] === true,
+  };
+
+  const ids = idsDeTipo(op.tipo);
+  if (ids) {
+    const nombres = new Set();
+    for (const f of filas) if (ids.has(f.tipo_id ?? f.tipoId)) nombres.add(OUT.tipoCorto(f.tipo));
+    pre.tipos = [...nombres];
+  }
+
+  if (op.zona) {
+    const pedidas = String(op.zona).split(',').map(normalizar).filter(Boolean);
+    const nombres = new Set();
+    for (const f of filas) {
+      if (f.zona && pedidas.some((t) => normalizar(f.zona).includes(t))) nombres.add(f.zona);
+    }
+    pre.zonas = [...nombres];
+    const sinDatos = pedidas.filter((t) => ![...nombres].some((z) => normalizar(z).includes(t)));
+    if (sinDatos.length) {
+      warn(`No hay alojamientos guardados en: ${sinDatos.join(', ')}. Proba con --paginas todas.`);
+    }
+  }
+  return pre;
+}
+
 export async function cmdReporte(db, op, pos) {
   const busqueda = elegirBusqueda(db, op, pos);
   const snap = DB.ultimoSnapshot(db, busqueda.id);
   if (!snap) throw new Error('Esa busqueda no tiene muestras.');
 
-  const filas = preparar(filasConHistoria(db, busqueda.id, snap.id), op);
-  const historiales = {};
-  for (const f of filas) historiales[f.property_id] = DB.historial(db, busqueda.id, f.property_id);
+  // A la pagina le mandamos todo lo disponible; filtrar es cosa suya.
+  const crudas = filasConHistoria(db, busqueda.id, snap.id);
+  const filas = enriquecer(filtrar(crudas, { incluirNoDisponibles: op.todos === true }), {});
+  const pre = preseleccionar(filas, op);
+  const muestras = DB.listarSnapshots(db, busqueda.id, 999).length;
 
   const ruta = op.html || `reportes/agoda-${busqueda.check_in}.html`;
-  const destino = OUT.guardar(ruta, OUT.reporteHtml(filas, { busqueda, historiales }));
+  const destino = OUT.guardar(ruta, OUT.reporteHtml(filas, {
+    busqueda, historiales: historiales(db, busqueda.id, filas), preseleccion: pre, muestras,
+  }));
+
   log(`\n  Reporte con ${filas.length} alojamientos: ${c('bold', destino)}`);
+  if (pre.tipos.length || pre.zonas.length) {
+    log(c('gray', `  Filtros ya marcados al abrir: ${[...pre.tipos, ...pre.zonas].join(', ')}`));
+  }
   if (op.csv) log(c('gray', `  CSV: ${OUT.guardar(op.csv, OUT.aCsv(filas))}`));
 }
 

@@ -149,6 +149,28 @@ Te muestra la línea de crontab lista; con `--instalar` la pone sola, y con
 `--quitar` la saca. En Windows te da el comando de `schtasks`. Los filtros y
 opciones que pases se arrastran a la tarea.
 
+### Varias búsquedas a la vez
+
+Cada tarea lleva nombre, así que podés seguir la noche de hoy **y** una fecha fija
+en paralelo, cada una con su propio reporte:
+
+```bash
+# la noche de hoy, se renueva sola todos los días
+agoda programar "Buenos Aires" --nombre hoy --tipo depto,casa --cada 60 --instalar
+
+# el viernes 4, fija, hasta que llegue
+agoda programar "Buenos Aires" --nombre viernes --noche 2026-09-04 \
+  --tipo depto,casa --cada 60 --desde-hora 9 --instalar
+```
+
+Instalar una **no pisa la otra**: cada bloque del crontab va marcado con su
+nombre, y `--quitar --nombre viernes` saca solo esa. El reporte por defecto pasa a
+ser `reportes/<nombre>.html`.
+
+Con fecha fija, la tarea **se apaga sola** cuando la noche pasó: sigue disparando
+pero sale sin hacer nada (`nada que hacer: la noche del 2026-09-04 ya paso`), así
+que no hace falta acordarse de desinstalarla.
+
 Cada corrida guarda una muestra **y regenera el HTML**, así que `reportes/hoy.html`
 siempre está al día. Deja una línea por corrida en `data/agoda.log`:
 
@@ -530,6 +552,6 @@ propio, apuntá `AGODA_CHROME` a su ejecutable.
 npm test
 ```
 
-68 tests sobre el parseo (con una respuesta real de Agoda como fixture), los
+73 tests sobre el parseo (con una respuesta real de Agoda como fixture), los
 filtros, el orden, las fechas, las miniaturas, los links, el armado del cron, el
 cruce entre noches a la misma hora y el cálculo de bajadas.

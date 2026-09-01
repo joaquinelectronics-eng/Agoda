@@ -184,6 +184,15 @@ async function buscarYGuardar(db, op, pos) {
   let ctx, datos;
   try {
     ctx = await armarBusqueda(db, page, op, pos);
+
+    // Una noche que ya paso no se puede reservar. Con fecha fija, la tarea
+    // programada se apaga sola: sigue disparando pero no hace nada.
+    if (ctx.checkIn < isoDate()) {
+      const aviso = `la noche del ${ctx.checkIn} ya paso`;
+      if (op.silencioso) { log(`${new Date().toISOString()} nada que hacer: ${aviso}`); return; }
+      throw new Error(`No puedo buscar ${aviso}. Usa --noche hoy o una fecha futura.`);
+    }
+
     if (!op.silencioso) log(c('gray', `  buscando: ${ctx.url}`));
     datos = await scrapear(page, ctx.url, { paginas: paginasPedidas(op), verboso: !op.silencioso });
   } finally {
@@ -710,10 +719,11 @@ export async function cmdHorarios(db, op, pos) {
 
 export async function cmdEstado(db, op, pos) {
   log('');
-  log(c('bold', '  Tarea programada'));
-  const cron = estadoCron();
-  log(`    ${cron.icono} ${cron.texto}`);
-  if (cron.linea) log(c('gray', `       ${recortar(cron.linea, 110)}`));
+  log(c('bold', '  Tareas programadas'));
+  for (const t of estadoCron()) {
+    log(`    ${t.icono} ${t.texto}`);
+    if (t.linea) log(c('gray', `       ${recortar(t.linea, 108)}`));
+  }
 
   const registro = op.registro ?? 'data/agoda.log';
   log('');
@@ -770,21 +780,23 @@ function huecosEntreMuestras(snaps) {
 
 function estadoCron() {
   if (process.platform === 'win32') {
-    return { icono: '?', texto: 'En Windows revisalo con:  schtasks /query /tn "agoda-tracker"' };
+    return [{ icono: '?', texto: 'En Windows revisalo con:  schtasks /query | findstr agoda' }];
   }
   let texto;
   try {
     texto = execFileSync('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   } catch {
-    return { icono: c('yellow', '!'), texto: 'No pude leer el crontab (o no hay ninguno). Instalala con: agoda programar ... --instalar' };
+    return [{ icono: c('yellow', '!'), texto: 'No pude leer el crontab (o no hay ninguno). Instala con: agoda programar ... --instalar' }];
   }
-  const lineas = texto.split('\n');
-  const i = lineas.findIndex((l) => l.trim() === MARCA_INICIO);
-  if (i < 0) {
-    return { icono: c('yellow', '!'), texto: 'No esta instalada. Ponela con: agoda programar ... --instalar' };
+  const tareas = tareasEnCrontab(texto);
+  if (!tareas.length) {
+    return [{ icono: c('yellow', '!'), texto: 'No hay ninguna instalada. Ponela con: agoda programar ... --instalar' }];
   }
-  const linea = lineas.slice(i + 1).find((l) => l.trim() && !l.trim().startsWith('#'));
-  return { icono: c('green', '✓'), texto: 'Instalada en el crontab.', linea };
+  return tareas.map((t) => ({
+    icono: c('green', '✓'),
+    texto: `${c('bold', t.nombre)} — ${(t.linea ?? '').split(' ').slice(0, 5).join(' ')}`,
+    linea: t.linea,
+  }));
 }
 
 function estadoRegistro(ruta) {
@@ -883,8 +895,20 @@ function mediana(xs) {
 
 // --- programar ---------------------------------------------------------------
 
-const MARCA_INICIO = '# >>> agoda-tracker';
-const MARCA_FIN = '# <<< agoda-tracker';
+// Cada tarea programada lleva nombre: asi se puede seguir mas de una busqueda a
+// la vez (la noche de hoy y, por ejemplo, un finde puntual) sin que una pise a la
+// otra al instalarse.
+const MARCA_INICIO = (nombre) => `# >>> agoda-tracker:${nombre}`;
+const MARCA_FIN = (nombre) => `# <<< agoda-tracker:${nombre}`;
+const RE_MARCA_INICIO = /^#\s*>>>\s*agoda-tracker(?::(.+))?$/;
+const RE_MARCA_FIN = /^#\s*<<<\s*agoda-tracker(?::(.+))?$/;
+
+/** Nombre de tarea usable en un crontab y en un nombre de archivo. */
+export function nombreDeTarea(txt) {
+  const limpio = normalizar(txt ?? 'hoy').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  if (!limpio) throw new Error(`Nombre de tarea invalido: "${txt}"`);
+  return limpio;
+}
 
 // Opciones que tiene sentido arrastrar a la tarea programada.
 const HEREDABLES = [
@@ -945,16 +969,42 @@ function escribirCrontab(texto) {
   execFileSync('crontab', ['-'], { input: texto.endsWith('\n') ? texto : texto + '\n', stdio: ['pipe', 'ignore', 'pipe'] });
 }
 
-export function sinBloque(texto) {
+/**
+ * Saca del crontab el bloque de una tarea (o todos los de agoda si nombre es null).
+ * Los bloques viejos sin nombre cuentan como la tarea "hoy", para no dejar
+ * huerfano lo que ya estaba instalado.
+ */
+export function sinBloque(texto, nombre = null) {
   const lineas = texto.split('\n');
   const salida = [];
   let dentro = false;
   for (const l of lineas) {
-    if (l.trim() === MARCA_INICIO) { dentro = true; continue; }
-    if (l.trim() === MARCA_FIN) { dentro = false; continue; }
+    const t = l.trim();
+    const abre = RE_MARCA_INICIO.exec(t);
+    if (abre) {
+      const suyo = abre[1] ?? 'hoy';
+      if (nombre === null || suyo === nombre) { dentro = true; continue; }
+    }
+    const cierra = RE_MARCA_FIN.exec(t);
+    if (cierra && dentro) { dentro = false; continue; }
     if (!dentro) salida.push(l);
   }
   return salida.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/** Las tareas de agoda que hay instaladas: nombre -> linea de cron. */
+export function tareasEnCrontab(texto) {
+  const lineas = texto.split('\n');
+  const tareas = [];
+  let actual = null;
+  for (const l of lineas) {
+    const t = l.trim();
+    const abre = RE_MARCA_INICIO.exec(t);
+    if (abre) { actual = { nombre: abre[1] ?? 'hoy', linea: null }; continue; }
+    if (RE_MARCA_FIN.test(t)) { if (actual) tareas.push(actual); actual = null; continue; }
+    if (actual && t && !t.startsWith('#') && !actual.linea) actual.linea = t;
+  }
+  return tareas;
 }
 
 export async function cmdProgramar(db, op, pos) {
@@ -966,41 +1016,47 @@ export async function cmdProgramar(db, op, pos) {
   const hasta = horaDe(op['hasta-hora'], 23);
   if (hasta < desde) throw new Error(`--hasta-hora (${hasta}) no puede ser antes que --desde-hora (${desde}).`);
 
+  const nombre = nombreDeTarea(op.nombre ?? (op.noche && normalizar(op.noche) !== 'hoy' ? op.noche : 'hoy'));
+
   if (op.quitar) {
     if (process.platform === 'win32') {
-      log('  En Windows:  schtasks /delete /tn "agoda-tracker" /f');
+      log(`  En Windows:  schtasks /delete /tn "agoda-${nombre}" /f`);
       return;
     }
-    const limpio = sinBloque(leerCrontab());
-    escribirCrontab(limpio);
-    log(c('green', '  Listo, saque la tarea del crontab.'));
+    const actual = leerCrontab();
+    const cuales = op.quitar === true && op.todo ? null : nombre;
+    const previas = tareasEnCrontab(actual);
+    escribirCrontab(sinBloque(actual, cuales));
+    const quedan = tareasEnCrontab(leerCrontab());
+    log(c('green', `  Listo, saque ${cuales === null ? 'todas las tareas' : `la tarea "${nombre}"`} del crontab.`));
+    if (previas.length && quedan.length) log(c('gray', `  Siguen instaladas: ${quedan.map((t) => t.nombre).join(', ')}`));
     return;
   }
 
   const destino = pos[0] ?? DB.buscarBusqueda(db)?.ciudad ?? null;
   if (!destino && !op.url) throw new Error('Decime un destino: agoda programar "Buenos Aires"');
 
-  const html = op.html ?? 'reportes/hoy.html';
+  const html = op.html ?? `reportes/${nombre}.html`;
   const registro = op.registro ?? 'data/agoda.log';
   const { raiz, linea } = comandoProgramado(op, destino, { html, registro });
   const cron = `${horarioCron(cada, desde, hasta)} ${linea}`;
 
   const porDia = Math.floor(60 / cada) * (hasta - desde + 1);
   log('');
-  log(`  ${c('bold', `Cada ${cada} min, de ${desde}:00 a ${hasta}:59`)} ${c('gray', `(${porDia} muestras por dia)`)}`);
+  log(`  Tarea ${c('bold', nombre)} · ${c('bold', `cada ${cada} min, de ${desde}:00 a ${hasta}:59`)} ${c('gray', `(${porDia} muestras por dia)`)}`);
   log(c('gray', `  Cada corrida guarda una muestra y regenera ${html}`));
   log('');
 
   if (process.platform === 'win32') {
-    const tarea = `schtasks /create /tn "agoda-tracker" /tr ${entrecomillar(linea)} /sc minute /mo ${cada} /st ${String(desde).padStart(2, '0')}:00 /f`;
+    const tarea = `schtasks /create /tn "agoda-${nombre}" /tr ${entrecomillar(linea)} /sc minute /mo ${cada} /st ${String(desde).padStart(2, '0')}:00 /f`;
     log(c('bold', '  Windows — pegá esto en una consola:'));
     log(`\n${tarea}\n`);
-    log(c('gray', '  Para sacarla:  schtasks /delete /tn "agoda-tracker" /f'));
+    log(c('gray', `  Para sacarla:  schtasks /delete /tn "agoda-${nombre}" /f`));
     return;
   }
 
   log(c('bold', '  Linea de crontab:'));
-  log(`\n${cron}\n`);
+  log(`\n${MARCA_INICIO(nombre)}\n${cron}\n${MARCA_FIN(nombre)}\n`);
 
   if (!op.instalar) {
     log(c('gray', '  Para ponerla:   agoda programar ... --instalar'));
@@ -1014,10 +1070,13 @@ export async function cmdProgramar(db, op, pos) {
   }
 
   const actual = leerCrontab();
-  const nuevo = [sinBloque(actual), MARCA_INICIO, cron, MARCA_FIN].filter(Boolean).join('\n');
+  // sinBloque(actual, nombre) saca solo ESTA tarea: las otras quedan intactas.
+  const nuevo = [sinBloque(actual, nombre), MARCA_INICIO(nombre), cron, MARCA_FIN(nombre)].filter(Boolean).join('\n');
   escribirCrontab(nuevo);
-  log(c('green', '  Instalada en el crontab.'));
-  log(c('gray', `  Verificala con:  crontab -l`));
-  log(c('gray', `  Sacala con:      agoda programar --quitar`));
+  const todas = tareasEnCrontab(leerCrontab());
+  log(c('green', `  Tarea "${nombre}" instalada en el crontab.`));
+  if (todas.length > 1) log(c('gray', `  Tareas de agoda instaladas: ${todas.map((t) => t.nombre).join(', ')}`));
+  log(c('gray', `  Verificala con:  agoda estado`));
+  log(c('gray', `  Sacala con:      agoda programar --quitar --nombre ${nombre}`));
   log(c('gray', `  El registro queda en ${path.join(raiz, registro)}`));
 }

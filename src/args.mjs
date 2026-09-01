@@ -128,8 +128,10 @@ ${B('AUTOMATICO')}   ${G('(comando programar: corre aunque cierres la terminal)'
   --hasta-hora <h>     Hasta que hora (23)
   --html <archivo>     Que reporte regenerar en cada corrida (reportes/hoy.html)
   --registro <archivo> Donde dejar el log (data/agoda.log)
+  --nombre <id>        Nombre de la tarea (hoy por defecto). Podes tener varias:
+                       una siguiendo la noche de hoy y otra una fecha fija
   --instalar           Ponerla en el crontab (si no, solo la muestra)
-  --quitar             Sacarla del crontab
+  --quitar             Sacar esa tarea del crontab (--quitar --todo saca todas)
   ${G('Los filtros y opciones de busqueda que pongas se arrastran a la tarea.')}
 
 ${B('HORARIOS')}   ${G('(comando horarios)')}
@@ -168,6 +170,9 @@ ${B('EJEMPLOS')}
 
   ${G('# que se actualice solo, cada hora, de 12 a 23')}
   agoda programar "Buenos Aires" --tipo depto,casa --cada 60 --instalar
+
+  ${G('# ademas, seguir una fecha fija hasta que llegue (tarea aparte)')}
+  agoda programar "Buenos Aires" --nombre viernes --noche 2026-09-04 --cada 60 --instalar
 
 ${B('VARIABLES')}
   AGODA_DB       ruta de la base (por defecto ./data/agoda.db)

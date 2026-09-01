@@ -78,6 +78,20 @@ Paso "5/5" "Primera muestra, para verificar que anda"
 $env:AGODA_TZ = 'America/Argentina/Buenos_Aires'
 & node bin/agoda.mjs buscar "Buenos Aires" --moneda USD --paginas todas --silencioso --serie datos --html reportes\hoy.html
 
+# Si la muestra de prueba fallo, la instalacion NO esta lista: decirlo, en vez de
+# cerrar con un "Listo" en verde que no es cierto.
+if ($LASTEXITCODE -ne 0) {
+  Write-Host @"
+
+La instalacion quedo a medias: las tareas estan registradas pero la muestra de
+prueba fallo, asi que cada corrida va a fallar igual. Mira el error de arriba.
+
+Si dice que falta Chromium:   npx playwright install chromium
+y despues volve a correr este script.
+"@ -ForegroundColor Red
+  exit 1
+}
+
 Write-Host @"
 
 Listo. De aca en mas se actualiza solo, cada hora de 11 a 23.

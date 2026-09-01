@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 // Punto de entrada del CLI.
 
+// La zona horaria tiene que quedar fija ANTES del primer uso de Date: de eso
+// dependen "hoy", la hora del dia de cada muestra y todo el analisis de horarios.
+// En tu maquina no hace falta (usa la del sistema); en un servidor en UTC, si.
+if (process.env.AGODA_TZ) process.env.TZ = process.env.AGODA_TZ;
+
 // node:sqlite todavia avisa que es experimental en cada arranque; no aporta nada al usuario.
 const emitir = process.emit;
 process.emit = function (nombre, dato, ...resto) {
@@ -26,6 +31,7 @@ const COMANDOS = {
   comparar: cmd.cmdComparar, compare: cmd.cmdComparar,
   horarios: cmd.cmdHorarios, hours: cmd.cmdHorarios,
   estado: cmd.cmdEstado, status: cmd.cmdEstado,
+  sincronizar: cmd.cmdSincronizar, sync: cmd.cmdSincronizar,
 };
 
 const { comando, pos, op } = parsear(process.argv.slice(2));

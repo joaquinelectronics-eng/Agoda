@@ -391,6 +391,7 @@ const ESTILOS = `
   .vsAyer.peor{color:var(--bad); border:1px solid var(--bad)}
   .vsAyer.igual{color:var(--muted); border:1px solid var(--line2)}
   .vsAyer.piso{border-style:dashed}
+  .vsAyerLeyenda{opacity:.72; font-weight:400}
   .tesis.ayer{background:var(--surface2); border-color:var(--line2)}
   .tesis.ayer b{color:var(--ink)}
   .pie{margin-top:auto; padding-top:9px; display:flex; align-items:center; justify-content:space-between; gap:8px}
@@ -778,12 +779,15 @@ function ficha(d) {
   if (d.ayerPct != null) {
     var mejor = d.ayerPct < -0.5, peor = d.ayerPct > 0.5;
     var contraElPiso = d.ayerBase === 'mejor';
-    var leyenda = contraElPiso ? '% vs lo mejor de la noche anterior' : '% vs la noche anterior';
+    // El porcentaje solo no dice cuanta plata es: va tambien el precio de esa noche.
+    var leyenda = contraElPiso ? 'lo mejor de la noche anterior' : 'la noche anterior';
     var explica = contraElPiso
       ? 'Lo mas barato que llego a estar la noche anterior: ' + fmt(d.ayer) + ' (' + (d.ayerHora || '') + '). Es el piso de toda esa noche, no la misma hora.'
       : 'La noche anterior, a esta misma hora (' + (d.ayerHora || '') + '), costaba ' + fmt(d.ayer);
     vsAyer = '<span class="vsAyer ' + (mejor ? 'mejor' : peor ? 'peor' : 'igual') + (contraElPiso ? ' piso' : '') + '" ' +
-      'title="' + explica + '">' + (mejor ? '▼ ' : peor ? '▲ ' : '= ') + (d.ayerPct > 0 ? '+' : '') + d.ayerPct.toFixed(0) + leyenda + '</span>';
+      'title="' + explica + '">' + (mejor ? '▼' : peor ? '▲' : '=') + ' ' +
+      (d.ayerPct > 0 ? '+' : '') + d.ayerPct.toFixed(0) + '% · ' + fmt(d.ayer) + ' ' + p.moneda +
+      ' <span class="vsAyerLeyenda">' + leyenda + '</span></span>';
   }
 
   var ancla = 'href="' + esc(d.url) + '" target="_blank" rel="noopener noreferrer"';

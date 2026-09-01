@@ -74,6 +74,7 @@ ${B('COMANDOS')}
   ${B('programar')} <destino>   Deja el seguimiento corriendo solo, hora a hora.
   ${B('horarios')}              A que hora del dia suele convenir reservar.
   ${B('estado')}                Si la automatizacion esta corriendo y con que huecos.
+  ${B('sincronizar')} [dir]      Reconstruye la base desde los archivos de muestras.
 
 ${B('BUSQUEDA')}
   --noche <f>          Fecha de entrada: hoy (por defecto), manana, +3, viernes, 05/09, 2026-09-05
@@ -82,6 +83,9 @@ ${B('BUSQUEDA')}
   --moneda <cod>       ARS por defecto. USD, EUR, BRL...
   --paginas <n>        Paginas de 100 resultados a bajar (3 = los 300 mas baratos)
   --url <url>          Usar una URL de Agoda ya armada (respeta los filtros que pusiste ahi)
+  --serie <dir>        Ademas del sqlite, dejar cada muestra como archivo suelto
+                       (datos/ por defecto). Sirve para que sobreviva a una
+                       maquina efimera: se versiona y se vuelve con "sincronizar"
 
 ${B('FILTROS')}   ${G('(se aplican sobre lo bajado, no dependen de los filtros de Agoda)')}
   --max <n>            Precio maximo por noche        --min <n> minimo
@@ -180,5 +184,6 @@ ${B('EJEMPLOS')}
 
 ${B('VARIABLES')}
   AGODA_DB       ruta de la base (por defecto ./data/agoda.db)
+  AGODA_TZ       zona horaria para las horas del dia (por defecto la del sistema)
   AGODA_CHROME   ruta a un Chrome/Chromium propio
 `;

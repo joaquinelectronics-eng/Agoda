@@ -12,6 +12,7 @@ import { compararConDiaAnterior, indicePorPropiedad } from './comparar.mjs';
 import { analizarHorarios, nochesDelPerfil } from './horarios.mjs';
 import { existsSync, readFileSync } from 'node:fs';
 import { tomarCerrojo } from './cerrojo.mjs';
+import { exportarMuestra, importarSerie } from './serie.mjs';
 import * as OUT from './salida.mjs';
 import { miniatura, incrustar, avisoProxy } from './imagenes.mjs';
 import {
@@ -206,6 +207,11 @@ async function buscarYGuardar(db, op, pos) {
     ? { snapshotId: null }
     : DB.guardarSnapshot(db, busqueda.id, datos.propiedades, { totalDisponibles: datos.totalDisponibles, paginas: datos.paginas });
 
+  // Con --serie, ademas del sqlite queda un archivo por muestra: es lo que
+  // sobrevive si la maquina donde corre es efimera.
+  let archivoSerie = null;
+  if (snapshotId && op.serie) archivoSerie = exportarMuestra(db, busqueda.id, snapshotId, op.serie === true ? 'datos' : op.serie);
+
   const filas = snapshotId
     ? filasConHistoria(db, busqueda.id, snapshotId)
     : datos.propiedades.map((p) => ({ ...p, property_id: p.propertyId, por_noche: p.porNoche, tipo_id: p.tipoId }));
@@ -222,7 +228,8 @@ async function buscarYGuardar(db, op, pos) {
     }
     const bajaron = listas.filter((f) => f._bajadaPct != null && f._bajadaPct < -0.5).length;
     log(`${new Date().toISOString()} ${busqueda.ciudad ?? busqueda.ciudad_id} ${busqueda.check_in} · ` +
-        `${datos.propiedades.length} alojamientos · ${bajaron} bajaron${extra}`);
+        `${datos.propiedades.length} alojamientos · ${bajaron} bajaron${extra}` +
+        (archivoSerie ? ` · ${archivoSerie}` : ''));
     return;
   }
 
@@ -685,6 +692,28 @@ function elegirBusqueda(db, op, pos) {
   return cand[0];
 }
 
+// --- reconstruir la base desde los archivos ----------------------------------
+
+export async function cmdSincronizar(db, op, pos) {
+  const dir = pos[0] ?? (op.serie === true || op.serie === undefined ? 'datos' : op.serie);
+  const r = importarSerie(db, dir);
+  if (op.silencioso) {
+    log(`${new Date().toISOString()} sincronizado ${dir}: ${r.importadas} nuevas, ${r.salteadas} ya estaban${r.rotas ? `, ${r.rotas} ilegibles` : ''}`);
+    return;
+  }
+  log('');
+  if (!r.archivos) {
+    log(c('gray', `  No hay muestras guardadas en ${dir}/`));
+    log(c('gray', '  Se crean solas con:  agoda buscar ... --serie datos'));
+    return;
+  }
+  log(`  ${c('bold', String(r.importadas))} muestras nuevas importadas de ${r.archivos} archivos en ${dir}/`);
+  if (r.salteadas) log(c('gray', `  ${r.salteadas} ya estaban en la base`));
+  if (r.rotas) log(c('yellow', `  ! ${r.rotas} archivos ilegibles, salteados`));
+  const b = DB.buscarBusqueda(db);
+  if (b) log(c('gray', `  Ultima busqueda: ${b.ciudad ?? b.ciudad_id} ${b.check_in}`));
+}
+
 // --- a que hora conviene reservar --------------------------------------------
 
 export async function cmdHorarios(db, op, pos) {
@@ -712,6 +741,7 @@ export async function cmdHorarios(db, op, pos) {
 
   encabezado(busqueda);
   log(c('gray', `${r.nochesAnalizadas} noches · ${r.series} series (alojamiento en una noche) · ${r.observaciones} observaciones${propiedades ? ` · solo ${propiedades.size} alojamientos que pasan tus filtros` : ''}`));
+  log(c('gray', `horas en ${zonaHoraria()}`));
   log('');
   log(OUT.tablaHorarios(r.horas, { minSeries, mejor: r.mejor, grafica: criterio === 'promedio' ? 'promedio' : 'mediana' }));
   log('');
@@ -754,8 +784,14 @@ export async function cmdHorarios(db, op, pos) {
 
 // --- salud de la automatizacion ----------------------------------------------
 
+/** En que zona horaria se estan leyendo las horas. Importa si corre en un servidor. */
+function zonaHoraria() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'la del sistema'; } catch { return 'la del sistema'; }
+}
+
 export async function cmdEstado(db, op, pos) {
   log('');
+  log(c('gray', `  Horas en ${zonaHoraria()} (cambiala con AGODA_TZ)`));
   log(c('bold', '  Tareas programadas'));
   for (const t of estadoCron()) {
     log(`    ${t.icono} ${t.texto}`);

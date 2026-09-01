@@ -1,7 +1,11 @@
 node_modules/
+# La base es local y efimera; lo que se versiona son las muestras en datos/.
 data/*.db
+# La base es local y efimera; lo que se versiona son las muestras en datos/.
 data/*.db-journal
+# La base es local y efimera; lo que se versiona son las muestras en datos/.
 data/*.db-wal
+# La base es local y efimera; lo que se versiona son las muestras en datos/.
 data/*.db-shm
 *.html.out
 reportes/

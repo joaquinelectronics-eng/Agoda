@@ -48,7 +48,8 @@ Sin `npm link` corrés todo con `node bin/agoda.mjs ...`.
 ## Dejarlo andando solo (una vez)
 
 ```bash
-./scripts/instalar.sh
+./scripts/instalar.sh                                          # macOS y Linux
+powershell -ExecutionPolicy Bypass -File scripts\instalar.ps1   # Windows
 ```
 
 Instala las dependencias, recupera las muestras ya guardadas en `datos/`, deja dos

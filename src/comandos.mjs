@@ -1121,9 +1121,13 @@ export async function cmdProgramar(db, op, pos) {
   log('');
 
   if (process.platform === 'win32') {
-    const tarea = `schtasks /create /tn "agoda-${nombre}" /tr ${entrecomillar(linea)} /sc minute /mo ${cada} /st ${String(desde).padStart(2, '0')}:00 /f`;
-    log(c('bold', '  Windows — pegá esto en una consola:'));
+    // /ri con /du cubre una franja horaria; /sc minute correria las 24 horas.
+    const horas = Math.max(1, hasta - desde);
+    const tarea = `schtasks /create /tn "agoda-${nombre}" /tr ${entrecomillar(linea)} ` +
+      `/sc DAILY /st ${String(desde).padStart(2, '0')}:00 /ri ${cada} /du ${String(horas).padStart(2, '0')}:00 /f`;
+    log(c('bold', '  Windows:'));
     log(`\n${tarea}\n`);
+    log(c('gray', '  Mas simple:  powershell -ExecutionPolicy Bypass -File scripts\\instalar.ps1'));
     log(c('gray', `  Para sacarla:  schtasks /delete /tn "agoda-${nombre}" /f`));
     return;
   }

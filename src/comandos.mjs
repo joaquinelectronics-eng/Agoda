@@ -545,41 +545,78 @@ async function resolverFotos(filas, op, anchoFoto, { silencioso = false } = {}) 
   return fotos;
 }
 
-/** Arma el HTML de una busqueda. Lo usan tanto "reporte" como "buscar --html". */
-async function generarReporte(db, busqueda, op, { ruta = null, silencioso = false } = {}) {
+/** Prepara los datos de una busqueda para el reporte. */
+function armarVista(db, busqueda, op) {
   const snap = DB.ultimoSnapshot(db, busqueda.id);
-  if (!snap) throw new Error('Esa busqueda no tiene muestras.');
+  if (!snap) return null;
 
   // A la pagina le mandamos todo lo disponible; filtrar es cosa suya.
   const crudas = filasConHistoria(db, busqueda.id, snap.id);
-  const filas = enriquecer(filtrar(crudas, { incluirNoDisponibles: op.todos === true }), {});
-  const pre = preseleccionar(filas, op, { silencioso });
-  const muestras = DB.listarSnapshots(db, busqueda.id, 999).length;
-
-  const anchoFoto = num(op['fotos-ancho'], 400);
-  const fotos = await resolverFotos(filas, op, anchoFoto, { silencioso });
+  // Por defecto va todo y los filtros solo dejan los chips marcados. Con
+  // --recortar se aplican de verdad: sirve para publicar o compartir el archivo,
+  // que con las fotos incrustadas se va de tamano rapido.
+  const recorte = op.recortar ? opcionesFiltro(op) : { incluirNoDisponibles: op.todos === true };
+  const filas = enriquecer(filtrar(crudas, recorte), {});
 
   // Contra la noche anterior a la misma hora, si esa noche esta guardada.
-  const comp = compararConDiaAnterior(db, busqueda, {
+  const comparacion = compararConDiaAnterior(db, busqueda, {
     diasAtras: num(op.contra, 1),
     toleranciaMin: num(op.tolerancia, 90),
     hora: op.hora === undefined ? null : num(op.hora),
   });
-  const contraAyer = comp.hermana ? indicePorPropiedad(comp) : null;
+
+  return {
+    busqueda,
+    filas,
+    historiales: historiales(db, busqueda.id, filas),
+    muestras: DB.listarSnapshots(db, busqueda.id, 999).length,
+    comparacion,
+    contraAyer: comparacion.hermana ? indicePorPropiedad(comparacion) : null,
+  };
+}
+
+/** --pestanas 2026-09-04,15 -> las busquedas que van como solapas extra. */
+function pestanasPedidas(db, op) {
+  if (!op.pestanas) return [];
+  return String(op.pestanas).split(',').map((x) => x.trim()).filter(Boolean).map((ref) => {
+    const b = /^\d+$/.test(ref)
+      ? DB.buscarBusqueda(db, { id: Number(ref) })
+      : DB.listarBusquedas(db).find((x) => x.check_in === parseFecha(ref));
+    if (!b) throw new Error(`No tengo guardada ninguna busqueda para "${ref}". Mira "agoda buscas".`);
+    return b;
+  });
+}
+
+/**
+ * Arma el HTML. Con --pestanas mete varias busquedas en el mismo archivo, cada
+ * una en su solapa; las fotos se bajan una sola vez para todas, porque el mismo
+ * alojamiento suele aparecer en varias noches.
+ */
+async function generarReporte(db, busqueda, op, { ruta = null, silencioso = false } = {}) {
+  const busquedas = [busqueda, ...pestanasPedidas(db, op)]
+    .filter((b, i, a) => a.findIndex((x) => x.id === b.id) === i);
+
+  const vistas = busquedas.map((b) => armarVista(db, b, op)).filter(Boolean);
+  if (!vistas.length) throw new Error('Esa busqueda no tiene muestras.');
+
+  const pre = preseleccionar(vistas.flatMap((v) => v.filas), op, { silencioso });
+  const anchoFoto = num(op['fotos-ancho'], vistas.length > 1 ? 320 : 400);
+  const fotos = await resolverFotos(vistas.flatMap((v) => v.filas), op, anchoFoto, { silencioso });
 
   const destino = OUT.guardar(ruta || op.html || `reportes/agoda-${busqueda.check_in}.html`,
-    OUT.reporteHtml(filas, {
-      busqueda, historiales: historiales(db, busqueda.id, filas), preseleccion: pre, muestras, fotos, anchoFoto,
-      contraAyer, comparacion: comp,
-    }));
-  return { destino, filas, pre, comp };
+    OUT.reporteHtml(vistas, { preseleccion: pre, fotos, anchoFoto }));
+
+  return { destino, filas: vistas[0].filas, pre, comp: vistas[0].comparacion, vistas };
 }
 
 export async function cmdReporte(db, op, pos) {
   const busqueda = elegirBusqueda(db, op, pos);
-  const { destino, filas, pre, comp } = await generarReporte(db, busqueda, op);
+  const { destino, filas, pre, comp, vistas } = await generarReporte(db, busqueda, op);
 
   log(`\n  Reporte con ${filas.length} alojamientos: ${c('bold', destino)}`);
+  if (vistas.length > 1) {
+    log(c('gray', `  ${vistas.length} solapas: ${vistas.map((v) => `${v.busqueda.check_in} (${v.filas.length})`).join(', ')}`));
+  }
   if (comp?.hermana) {
     log(c('gray', `  Comparado contra la noche del ${comp.hermana.check_in} a las ~${comp.referencia?.etiqueta} (${comp.filas.length} en comun)`));
   }

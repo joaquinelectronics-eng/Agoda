@@ -4,7 +4,7 @@ import { c } from './util.mjs';
 
 const BOOLEANOS = new Set([
   'cancelacion-gratis', 'todos', 'headful', 'json', 'ayuda', 'help', 'sin-guardar',
-  'solo-bajaron', 'silencioso', 'version', 'instalar', 'quitar',
+  'solo-bajaron', 'silencioso', 'version', 'instalar', 'quitar', 'recortar', 'todo',
 ]);
 
 const ALIAS = {
@@ -103,7 +103,11 @@ ${B('SALIDA')}
   --busqueda <id>      Sobre que busqueda guardada trabajar (ver "agoda buscas")
   --csv <archivo>      Exporta a CSV      --html <archivo> reporte navegable
   --fotos <modo>       url (por defecto), incrustadas (archivo autonomo) o ninguna
-  --fotos-ancho <px>   Ancho de las miniaturas (400)
+  --fotos-ancho <px>   Ancho de las miniaturas (400; 320 con varias solapas)
+  --pestanas <lista>   Mete otras busquedas como solapas en el mismo archivo
+                       (por fecha o por id, ej: --pestanas 2026-09-04)
+  --recortar           Los filtros sacan filas del archivo, no solo dejan los
+                       chips marcados. Para compartirlo o publicarlo mas liviano
   --json               Volca JSON crudo por stdout
 
 ${B('SEGUIMIENTO')}   ${G('(comando seguir)')}

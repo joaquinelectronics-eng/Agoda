@@ -233,73 +233,6 @@ export function guardar(ruta, contenido) {
   return path.resolve(ruta);
 }
 
-// --- reporte HTML -----------------------------------------------------------
-
-const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-
-/**
- * El link a la propiedad tiene que abrir TUS fechas, no las que Agoda elija.
- * Sin estos parametros cae en la pagina generica y hay que cargar todo de nuevo.
- */
-export function urlConFechas(url, busqueda) {
-  if (!url || !busqueda) return url;
-  try {
-    const u = new URL(url);
-    const p = {
-      checkIn: busqueda.check_in ?? busqueda.checkIn,
-      los: busqueda.los,
-      adults: busqueda.adultos,
-      children: busqueda.ninos,
-      rooms: busqueda.habitaciones,
-      currency: busqueda.moneda,
-    };
-    for (const [k, v] of Object.entries(p)) if (v != null && v !== '') u.searchParams.set(k, String(v));
-    return u.toString();
-  } catch {
-    return url;
-  }
-}
-
-/**
- * Fila de la base -> objeto liviano para el navegador.
- * Las fotos van como miniatura del ancho que use la vista: la original pesa 40
- * veces mas y en una pagina de cientos de fichas eso son decenas de megas.
- * Si `fotos` viene, la miniatura va incrustada como data: URI.
- */
-function filaParaWeb(f, { historiales, fotos, busqueda, anchoFoto, contraAyer }) {
-  const id = f.property_id ?? f.propertyId;
-  const ayer = contraAyer ? contraAyer.get(id) : null;
-  const mini = miniatura(f.imagen, anchoFoto);
-  const final = f._precio ?? f.por_noche ?? f.porNoche ?? null;
-  const base = f.por_noche_sin_imp ?? f.porNocheSinImp ?? null;
-  return {
-    id,
-    nombre: f.nombre,
-    final,                                   // por noche, impuestos y cargos incluidos
-    base,                                    // por noche, lo que Agoda muestra en la tarjeta
-    impPct: final != null && base ? ((final - base) / base) * 100 : null,
-    total: f.total ?? null,                  // toda la estadia, con impuestos
-    min: f.minimo ?? null,
-    max: f.maximo ?? null,
-    bajadaPct: f._bajadaPct ?? null,
-    nota: f.nota ?? null,
-    reviews: f.reviews ?? 0,
-    estrellas: f.estrellas ?? null,
-    tipo: tipoCorto(f.tipo),
-    zona: f.zona ?? '',
-    url: urlConFechas(f.url, busqueda) ?? '',
-    img: (fotos ? fotos.get(mini) : mini) ?? '',
-    canc: /free/i.test(f.cancelacion ?? '') ? 1 : 0,
-    libres: f.habitaciones_libres ?? f.habitacionesLibres ?? null,
-    hist: (historiales[id] ?? []).map((p) => p.por_noche),
-    ayer: ayer ? ayer.ayer : null,             // precio de referencia de la noche anterior
-    ayerPct: ayer ? ayer.pct : null,
-    ayerBase: ayer ? ayer.base : null,         // 'hora' = a esta misma hora | 'mejor' = el piso de esa noche
-    ayerHora: ayer ? ayer.horaAyer : null,
-  };
-}
-
 const ESTILOS = `
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
@@ -335,6 +268,8 @@ const ESTILOS = `
   }
 
   *{box-sizing:border-box}
+  /* Sin esto, cualquier regla con display propio le gana al atributo hidden. */
+  [hidden]{display:none !important}
   body{
     margin:0; background:var(--ground); color:var(--ink);
     font:400 14px/1.5 'Archivo', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -353,6 +288,17 @@ const ESTILOS = `
     background:var(--markup-soft); border:1px solid var(--line); font-size:13.5px;
   }
   .tesis b{color:var(--markup)}
+
+  .solapas{display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 4px}
+  .solapa{
+    background:var(--surface); color:var(--muted); border:1px solid var(--line); border-radius:11px;
+    padding:9px 16px; font:inherit; cursor:pointer; text-align:left; display:flex; flex-direction:column; gap:2px;
+    transition:border-color .14s, color .14s, background .14s;
+  }
+  .solapa:hover{border-color:var(--line2); color:var(--ink)}
+  .solapa[aria-pressed="true"]{background:var(--ink); color:var(--ground); border-color:var(--ink)}
+  .solapaTitulo{font-size:15px; font-weight:600; letter-spacing:-.01em}
+  .solapaSub{font-size:11.5px; opacity:.75; font-family:'IBM Plex Mono', ui-monospace, monospace}
 
   .consola{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:15px 17px; margin:15px 0; box-shadow:var(--sombra)}
   .grupo{display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:11px 0; border-top:1px solid var(--line)}
@@ -503,31 +449,132 @@ const ESTILOS = `
   @media (max-width:640px){ .cont{padding:0 13px} h1{font-size:19px} input[type=search]{width:100%} .rejilla{grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:14px} }
 </style>`;
 
+// --- reporte HTML -----------------------------------------------------------
+
+const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+
 /**
- * Reporte autocontenido. Vista de fichas con foto grande (para mirar) y vista de
- * lista (para comparar precios). `preseleccion` deja los filtros ya marcados al
- * abrir, sin sacar datos. `fragmento: true` devuelve solo el contenido.
+ * El link a la propiedad tiene que abrir TUS fechas, no las que Agoda elija.
+ * Sin estos parametros cae en la pagina generica y hay que cargar todo de nuevo.
  */
-export function reporteHtml(filas, {
-  busqueda, historiales = {}, generado = new Date(), preseleccion = {}, muestras = null,
-  fragmento = false, nombre = null, fotos = null, anchoFoto = 400,
-  contraAyer = null, comparacion = null,
+export function urlConFechas(url, busqueda) {
+  if (!url || !busqueda) return url;
+  try {
+    const u = new URL(url);
+    const p = {
+      checkIn: busqueda.check_in ?? busqueda.checkIn,
+      los: busqueda.los,
+      adults: busqueda.adultos,
+      children: busqueda.ninos,
+      rooms: busqueda.habitaciones,
+      currency: busqueda.moneda,
+    };
+    for (const [k, v] of Object.entries(p)) if (v != null && v !== '') u.searchParams.set(k, String(v));
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Fila de la base -> objeto liviano para el navegador.
+ * Las fotos van como miniatura del ancho que use la vista: la original pesa 40
+ * veces mas. Si `fotos` viene, la miniatura va incrustada como data: URI.
+ */
+function filaParaWeb(f, { historiales, fotos, busqueda, anchoFoto, contraAyer }) {
+  const id = f.property_id ?? f.propertyId;
+  const mini = miniatura(f.imagen, anchoFoto);
+  const ayer = contraAyer ? contraAyer.get(id) : null;
+  const final = f._precio ?? f.por_noche ?? f.porNoche ?? null;
+  const base = f.por_noche_sin_imp ?? f.porNocheSinImp ?? null;
+  return {
+    id,
+    nombre: f.nombre,
+    final,                                   // por noche, impuestos y cargos incluidos
+    base,                                    // por noche, lo que Agoda muestra en la tarjeta
+    impPct: final != null && base ? ((final - base) / base) * 100 : null,
+    total: f.total ?? null,
+    min: f.minimo ?? null,
+    max: f.maximo ?? null,
+    bajadaPct: f._bajadaPct ?? null,
+    nota: f.nota ?? null,
+    reviews: f.reviews ?? 0,
+    estrellas: f.estrellas ?? null,
+    tipo: tipoCorto(f.tipo),
+    zona: f.zona ?? '',
+    url: urlConFechas(f.url, busqueda) ?? '',
+    img: (fotos ? fotos.get(mini) : mini) ?? '',
+    canc: /free/i.test(f.cancelacion ?? '') ? 1 : 0,
+    libres: f.habitaciones_libres ?? f.habitacionesLibres ?? null,
+    hist: (historiales[id] ?? []).map((p) => p.por_noche),
+    ayer: ayer ? ayer.ayer : null,
+    ayerPct: ayer ? ayer.pct : null,
+    ayerBase: ayer ? ayer.base : null,
+    ayerHora: ayer ? ayer.horaAyer : null,
+  };
+}
+
+/** Nombre corto de una noche, para la solapa: "vie 4 sep". */
+function etiquetaNoche(checkIn) {
+  const [y, m, d] = String(checkIn).split('-').map(Number);
+  const fecha = new Date(y, m - 1, d);
+  const dias = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+  const meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  return `${dias[fecha.getDay()]} ${d} ${meses[m - 1]}`;
+}
+
+/** Las fotos se comparten entre solapas: el mismo depto aparece en varias noches. */
+export function urlesDeFotos(filas, anchoFoto = 320) {
+  return filas.map((f) => miniatura(f.imagen, anchoFoto)).filter(Boolean);
+}
+
+/**
+ * Reporte autocontenido con una solapa por busqueda.
+ *
+ * `vistas` es un array de { busqueda, filas, historiales, comparacion, contraAyer, muestras }.
+ * Los filtros son unicos y se comparten entre solapas: los chips salen de la
+ * union de todas, asi cambiar de noche no te resetea lo que elegiste.
+ */
+export function reporteHtml(vistas, {
+  generado = new Date(), preseleccion = {}, fragmento = false, nombre = null,
+  fotos = null, anchoFoto = 320, titulo = null,
 } = {}) {
-  const datos = filas.map((f) => filaParaWeb(f, { historiales, fotos, busqueda, anchoFoto, contraAyer }));
-  const conAyer = datos.filter((d) => d.ayerPct != null);
-  const noches = Number(busqueda?.los ?? 1);
-  const moneda = busqueda?.moneda ?? '';
-  const ciudad = busqueda?.ciudad ?? 'Agoda';
-  const fecha = busqueda?.check_in ?? busqueda?.checkIn ?? '';
-  const huespedes = busqueda?.adultos ?? 2;
-  const titulo = `${ciudad} · ${fecha} · ${noches} noche${noches > 1 ? 's' : ''}`;
+  const pestanas = vistas.map((v, i) => {
+    const datos = v.filas.map((f) => filaParaWeb(f, {
+      historiales: v.historiales ?? {}, fotos, busqueda: v.busqueda, anchoFoto, contraAyer: v.contraAyer,
+    }));
+    const conRecargo = datos.filter((d) => d.impPct != null && d.impPct > 0.5);
+    const conAyer = datos.filter((d) => d.ayerPct != null);
+    const b = v.busqueda;
+    const noches = Number(b?.los ?? 1);
+    return {
+      id: `p${i}`,
+      etiqueta: etiquetaNoche(b.check_in),
+      checkIn: b.check_in,
+      noches,
+      moneda: b.moneda ?? '',
+      huespedes: b.adultos ?? 2,
+      ciudad: b.ciudad ?? 'Agoda',
+      muestras: v.muestras ?? null,
+      recargoMax: conRecargo.length ? Math.max(...conRecargo.map((d) => d.impPct)) : 0,
+      comparacion: v.comparacion?.hermana ? {
+        checkIn: v.comparacion.hermana.check_in,
+        hora: v.comparacion.referencia?.etiqueta ?? '',
+        piso: conAyer.filter((d) => d.ayerBase === 'mejor').length,
+        aHora: conAyer.filter((d) => d.ayerBase === 'hora').length,
+        masBaratos: conAyer.filter((d) => d.ayerPct < -0.5).length,
+        masCaros: conAyer.filter((d) => d.ayerPct > 0.5).length,
+        total: conAyer.length,
+      } : null,
+      datos,
+    };
+  });
 
-  const conRecargo = datos.filter((d) => d.impPct != null && d.impPct > 0.5);
-  const recargoMax = conRecargo.length ? Math.max(...conRecargo.map((d) => d.impPct)) : 0;
-
+  // Los chips salen de la union de todas las solapas.
   const contar = (clave) => {
     const m = new Map();
-    for (const d of datos) {
+    for (const p of pestanas) for (const d of p.datos) {
       const v = d[clave];
       if (v == null || v === '') continue;
       m.set(v, (m.get(v) ?? 0) + 1);
@@ -537,7 +584,10 @@ export function reporteHtml(filas, {
   const tipos = contar('tipo');
   const zonas = contar('zona');
 
+  const tituloPagina = titulo ?? `${pestanas[0].ciudad} · ${pestanas.map((p) => p.etiqueta).join(' · ')}`;
+
   const estadoInicial = {
+    pestana: pestanas[0].id,
     tipos: preseleccion.tipos ?? [],
     zonas: preseleccion.zonas ?? [],
     max: preseleccion.max ?? null,
@@ -557,35 +607,24 @@ export function reporteHtml(filas, {
     `<button type="button" class="chip" data-grupo="${grupo}" data-valor="${escHtml(valor)}" aria-pressed="false">` +
     `${escHtml(valor)}<span class="c">${n}</span></button>`).join('');
 
+  const solapas = pestanas.map((p) => {
+    const noches = p.noches > 1 ? `${p.noches} noches` : '1 noche';
+    return `<button type="button" class="solapa" data-pestana="${p.id}" aria-pressed="false">
+      <span class="solapaTitulo">${escHtml(p.etiqueta)}</span>
+      <span class="solapaSub">${escHtml(p.checkIn)} · ${noches} · ${p.datos.length}</span>
+    </button>`;
+  }).join('');
+
   const CUERPO = `
 <div class="cont">
 <header>
-  <h1>${escHtml(titulo)}</h1>
-  <div class="meta">${escHtml(String(huespedes))} huéspedes · ${datos.length} alojamientos${muestras ? ` · ${muestras} muestras de precio` : ''} · datos del ${escHtml(generado.toLocaleString('es-AR'))}</div>
-  <div class="tesis">Agoda muestra en sus tarjetas el precio <b>sin impuestos</b>. Acá el orden es por
-  <b>precio final</b>${recargoMax > 1 ? `, y el recargo llega al <b>${recargoMax.toFixed(0)}%</b> en esta búsqueda` : ''}:
-  el que parece más barato muchas veces no lo es.</div>
-  ${conAyer.length ? (() => {
-    const piso = conAyer.filter((d) => d.ayerBase === 'mejor').length;
-    const hora = conAyer.length - piso;
-    const masBaratos = conAyer.filter((d) => d.ayerPct < -0.5).length;
-    const masCaros = conAyer.filter((d) => d.ayerPct > 0.5).length;
-    const noche = escHtml(comparacion?.hermana?.check_in ?? '');
-    const contra = piso && !hora
-      ? `con <b>el precio más bajo que tocó cada uno la noche del ${noche}</b>`
-      : piso
-        ? `con <b>la noche del ${noche}</b> (${hora} a la misma hora ~${escHtml(comparacion?.referencia?.etiqueta ?? '')}, ${piso} contra el mejor precio de esa noche)`
-        : `con <b>la noche del ${noche}</b> a la misma hora (~${escHtml(comparacion?.referencia?.etiqueta ?? '')})`;
-    const aclara = piso
-      ? ' Ese mejor precio es el piso de toda la noche, así que esa parte de la comparación tira para arriba; van con el borde punteado.'
-      : '';
-    return `<div class="tesis ayer">Comparado ${contra}: <b>${masBaratos}</b> están más baratos, ${masCaros} más caros,
-      sobre ${conAyer.length} comparables.${aclara}</div>`;
-  })() : ''}
-  <div class="tesis nota" id="notaEnmarcado" hidden>Esta página está embebida, y el navegador puede
-  no dejarla abrir pestañas nuevas. Si al tocar una ficha no pasa nada, usá <b>Copiar link</b> y pegalo
-  en una pestaña. En el archivo HTML que genera <code>agoda reporte</code> los links abren normal.</div>
+  <h1>${escHtml(tituloPagina)}</h1>
+  <div class="meta">datos del ${escHtml(generado.toLocaleString('es-AR'))}</div>
 </header>
+
+${pestanas.length > 1 ? `<div class="solapas" role="tablist">${solapas}</div>` : ''}
+
+<div id="bandas"></div>
 
 <div class="consola">
   <div class="grupo">
@@ -616,7 +655,7 @@ export function reporteHtml(filas, {
     <label class="campo">ordenar por<select id="forden">
       <option value="final">precio final</option>
       <option value="impPct">recargo oculto</option>
-      <option value="bajadaPct">cuánto bajó hoy</option>
+      <option value="bajadaPct">cuánto bajó</option>
       <option value="ayerPct">vs la noche anterior</option>
       <option value="nota">nota</option>
       <option value="reviews">cantidad de reviews</option>
@@ -626,31 +665,19 @@ export function reporteHtml(filas, {
     <button type="button" class="chip" id="fsentido" title="Invertir el orden">↑ menor primero</button>
     <label class="marca"><input type="checkbox" id="fcanc"> cancelación gratis</label>
     <label class="marca"><input type="checkbox" id="fbaja"> solo los que bajaron hoy</label>
-    ${conAyer.length ? `<label class="marca"><input type="checkbox" id="fayer"> solo más baratos que ${conAyer.every((d) => d.ayerBase === 'mejor') ? 'lo mejor de anoche' : 'anoche'}</label>` : ''}
+    <label class="marca" id="marcaAyer" hidden><input type="checkbox" id="fayer"> solo más baratos que la noche anterior</label>
   </div>
 </div>
 
 <div class="resumen" id="resumen"></div>
-
 <div class="rejilla" id="rejilla"></div>
-
-<div class="marco" id="marco" hidden><table><thead><tr>
-  <th class="der" data-k="_i">#</th><th></th>
-  <th class="der activa" data-k="final">precio final ▲</th>
-  <th class="der" data-k="impPct">recargo oculto</th>
-  ${noches > 1 ? '<th class="der" data-k="total">total ' + noches + 'n</th>' : ''}
-  <th class="der" data-k="bajadaPct">evolución</th>
-  ${conAyer.length ? '<th class="der" data-k="ayerPct">vs anoche</th>' : ''}
-  <th class="der" data-k="nota">nota</th>
-  <th data-k="tipo">tipo</th><th data-k="zona">zona</th><th data-k="nombre">alojamiento</th>
-</tr></thead><tbody id="cuerpoTabla"></tbody></table></div>
-
+<div class="marco" id="marco" hidden><table><thead><tr id="cabecera"></tr></thead><tbody id="cuerpoTabla"></tbody></table></div>
 <div class="nada" id="nada" hidden>Ningún alojamiento coincide con estos filtros.</div>
 
 <footer>
   Precio final = por habitación por noche, con impuestos y cargos de Agoda incluidos. Puede haber
   extras que el alojamiento cobre en el momento y que Agoda no informe acá.<br>
-  Los links abren la ficha de Agoda ya con tus fechas y tu ocupación cargadas.<br>
+  Los links abren la ficha de Agoda ya con las fechas de la solapa que estés mirando.<br>
   Los precios se mueven durante el día: una bajada chica puede ser ruido, una sostenida es real.
   Verificá siempre en Agoda antes de reservar.
 </footer>
@@ -658,30 +685,28 @@ export function reporteHtml(filas, {
 
   const GUION = `
 <script>
-var DATOS = ${JSON.stringify(datos)};
-var MONEDA = ${JSON.stringify(moneda)};
-var VER_TOTAL = ${noches > 1};
-var VER_AYER = ${conAyer.length > 0};
-var RECARGO_MAX = ${recargoMax.toFixed(2)};
-var PRESET = ${JSON.stringify({ tipos: estadoInicial.tipos, zonas: estadoInicial.zonas })};
-var CLAVE = 'agoda-filtros-' + ${JSON.stringify(String(busqueda?.id ?? 'x') + '-' + fecha)};
+var PESTANAS = ${JSON.stringify(pestanas)};
+var CLAVE = 'agoda-filtros-' + ${JSON.stringify(pestanas.map((p) => p.checkIn).join('_'))};
 
 // true si la pagina vive adentro de un iframe: ahi abrir pestanas puede estar prohibido.
 var ENMARCADO = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
 
-var VACIO = { tipos:[], zonas:[], max:null, nota:null, reviews:null, canc:false, baja:false, mejorQueAyer:false, texto:'', conImpuestos:true, vista:'fichas', orden:'final', asc:true };
+var VACIO = { pestana: PESTANAS[0].id, tipos:[], zonas:[], max:null, nota:null, reviews:null, canc:false,
+              baja:false, mejorQueAyer:false, texto:'', conImpuestos:true, vista:'fichas', orden:'final', asc:true };
 var estado = Object.assign({}, VACIO, ${JSON.stringify(estadoInicial)});
 
 try {
   var guardado = localStorage.getItem(CLAVE);
   if (guardado) estado = Object.assign(estado, JSON.parse(guardado));
-} catch (e) { /* modo privado o storage bloqueado: seguimos con lo que vino */ }
+} catch (e) { /* modo privado o storage bloqueado */ }
+if (!PESTANAS.some(function (p) { return p.id === estado.pestana; })) estado.pestana = PESTANAS[0].id;
 function guardar() { try { localStorage.setItem(CLAVE, JSON.stringify(estado)); } catch (e) {} }
 
 function $(id) { return document.getElementById(id); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function norm(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase(); }
 function fmt(n) { return n == null ? '' : n.toLocaleString('es-AR', { maximumFractionDigits: Math.abs(n) >= 1000 ? 0 : 2 }); }
+function activa() { return PESTANAS.filter(function (p) { return p.id === estado.pestana; })[0] || PESTANAS[0]; }
 function precioDe(d) { return estado.conImpuestos ? d.final : d.base; }
 
 function curva(h, ancho) {
@@ -700,7 +725,7 @@ function curva(h, ancho) {
 }
 
 function filtrados() {
-  return DATOS.filter(function (d) {
+  return activa().datos.filter(function (d) {
     var p = precioDe(d);
     if (estado.tipos.length && estado.tipos.indexOf(d.tipo) < 0) return false;
     if (estado.zonas.length && estado.zonas.indexOf(d.zona) < 0) return false;
@@ -738,6 +763,7 @@ function etiquetasDe(d) {
 }
 
 function ficha(d) {
+  var p = activa();
   var foto = d.img
     ? '<img loading="lazy" decoding="async" src="' + d.img + '" alt="Foto de ' + esc(d.nombre) + '">'
     : '<span class="sinfoto">sin foto</span>';
@@ -745,27 +771,25 @@ function ficha(d) {
     ? '<span class="selloRecargo" title="Agoda publica ' + fmt(d.base) + ', sin impuestos">+' + d.impPct.toFixed(0) + '%</span>' : '';
   var baja = (d.bajadaPct != null && d.bajadaPct < -0.5)
     ? '<span class="selloBaja">bajó ' + d.bajadaPct.toFixed(0) + '%</span>' : '';
+  var sinImp = (estado.conImpuestos && d.base != null && d.base !== d.final)
+    ? '<span class="sinImp">Agoda publica ' + fmt(d.base) + '</span>' : '';
+
   var vsAyer = '';
   if (d.ayerPct != null) {
     var mejor = d.ayerPct < -0.5, peor = d.ayerPct > 0.5;
     var contraElPiso = d.ayerBase === 'mejor';
-    var leyenda = contraElPiso ? '% vs lo mejor de anoche' : '% vs anoche';
+    var leyenda = contraElPiso ? '% vs lo mejor de la noche anterior' : '% vs la noche anterior';
     var explica = contraElPiso
       ? 'Lo mas barato que llego a estar la noche anterior: ' + fmt(d.ayer) + ' (' + (d.ayerHora || '') + '). Es el piso de toda esa noche, no la misma hora.'
       : 'La noche anterior, a esta misma hora (' + (d.ayerHora || '') + '), costaba ' + fmt(d.ayer);
     vsAyer = '<span class="vsAyer ' + (mejor ? 'mejor' : peor ? 'peor' : 'igual') + (contraElPiso ? ' piso' : '') + '" ' +
-      'title="' + explica + '">' +
-      (mejor ? '▼ ' : peor ? '▲ ' : '= ') + (d.ayerPct > 0 ? '+' : '') + d.ayerPct.toFixed(0) + leyenda + '</span>';
+      'title="' + explica + '">' + (mejor ? '▼ ' : peor ? '▲ ' : '= ') + (d.ayerPct > 0 ? '+' : '') + d.ayerPct.toFixed(0) + leyenda + '</span>';
   }
-  var sinImp = (estado.conImpuestos && d.base != null && d.base !== d.final)
-    ? '<span class="sinImp">Agoda publica ' + fmt(d.base) + '</span>' : '';
 
-  // Ojo: link nativo, sin interceptar el click. Es lo unico que abre dentro de un
-  // iframe con sandbox; window.open desde script queda bloqueado ahi.
   var ancla = 'href="' + esc(d.url) + '" target="_blank" rel="noopener noreferrer"';
   return '<article class="ficha">' +
     '<a class="foto" ' + ancla + ' aria-label="Abrir ' + esc(d.nombre) + ' en Agoda">' + foto +
-      '<span class="sello">' + fmt(precioDe(d)) + '<span class="moneda">' + MONEDA + '</span></span>' +
+      '<span class="sello">' + fmt(precioDe(d)) + '<span class="moneda">' + p.moneda + '</span></span>' +
       recargo + baja +
     '</a>' +
     '<div class="interior">' +
@@ -776,7 +800,7 @@ function ficha(d) {
         '<span>·</span><span>' + esc(d.tipo) + '</span>' +
         (d.zona ? '<span>·</span><span>' + esc(d.zona) + '</span>' : '') +
       '</div>' +
-      (sinImp ? '<div class="subdatos">' + sinImp + (VER_TOTAL ? '<span>· total ' + fmt(d.total) + '</span>' : '') + '</div>' : '') +
+      (sinImp ? '<div class="subdatos">' + sinImp + (p.noches > 1 ? '<span>· total ' + fmt(d.total) + '</span>' : '') + '</div>' : '') +
       '<div class="etiquetas">' + vsAyer + etiquetasDe(d) + '</div>' +
       '<div class="pie">' + curva(d.hist, 72) +
         '<span class="acciones">' +
@@ -787,12 +811,39 @@ function ficha(d) {
     '</div></article>';
 }
 
+function cabeceraTabla() {
+  var p = activa();
+  var verAyer = p.comparacion != null;
+  var th = [
+    '<th class="der" data-k="_i">#</th><th></th>',
+    '<th class="der" data-k="final">precio final</th>',
+    '<th class="der" data-k="impPct">recargo oculto</th>',
+    p.noches > 1 ? '<th class="der" data-k="total">total ' + p.noches + 'n</th>' : '',
+    '<th class="der" data-k="bajadaPct">evolución</th>',
+    verAyer ? '<th class="der" data-k="ayerPct">vs anterior</th>' : '',
+    '<th class="der" data-k="nota">nota</th>',
+    '<th data-k="tipo">tipo</th><th data-k="zona">zona</th><th data-k="nombre">alojamiento</th>',
+  ].join('');
+  $('cabecera').innerHTML = th;
+  document.querySelectorAll('th[data-k]').forEach(function (x) {
+    if (x.dataset.k === estado.orden) { x.classList.add('activa'); x.textContent += estado.asc ? ' ▲' : ' ▼'; }
+    x.addEventListener('click', function () {
+      var k = x.dataset.k;
+      if (k === '_i') return;
+      if (estado.orden === k) estado.asc = !estado.asc;
+      else { estado.orden = k; estado.asc = ['nota', 'bajadaPct', 'impPct', 'ayerPct'].indexOf(k) < 0; }
+      sincronizar(); pintar();
+    });
+  });
+}
+
 function fila(d, i) {
+  var p = activa();
   var b = d.bajadaPct;
   var clase = b == null ? '' : b < -0.5 ? 'baja' : b > 0.5 ? 'sube' : 'plano';
   var recargo = '<span style="color:var(--muted)">—</span>';
   if (d.impPct != null && d.impPct > 0.5) {
-    var ancho = Math.max(6, Math.min(54, (d.impPct / (RECARGO_MAX || 30)) * 54));
+    var ancho = Math.max(6, Math.min(54, (d.impPct / (p.recargoMax || 30)) * 54));
     recargo = '<span class="recargo"><span class="pct">+' + d.impPct.toFixed(0) + '%</span>' +
               '<span class="barra" style="width:' + ancho.toFixed(0) + 'px"></span></span>';
   }
@@ -805,10 +856,10 @@ function fila(d, i) {
     '<td>' + (d.img ? '<img class="miniatura" loading="lazy" decoding="async" src="' + d.img + '" alt="">' : '<span class="miniatura"></span>') + '</td>' +
     '<td class="der"><span class="precio">' + fmt(precioDe(d)) + '</span>' + segundo + '</td>' +
     '<td class="der">' + recargo + '</td>' +
-    (VER_TOTAL ? '<td class="der n">' + fmt(d.total) + '</td>' : '') +
+    (p.noches > 1 ? '<td class="der n">' + fmt(d.total) + '</td>' : '') +
     '<td class="der"><span class="evol">' + curva(d.hist) +
       '<span class="n ' + clase + '">' + (b == null ? '' : (b > 0 ? '+' : '') + b.toFixed(0) + '%') + '</span></span></td>' +
-    (VER_AYER ? '<td class="der">' + (d.ayerPct == null ? '<span style="color:var(--muted)">—</span>' :
+    (p.comparacion ? '<td class="der">' + (d.ayerPct == null ? '<span style="color:var(--muted)">—</span>' :
       '<span class="n ' + (d.ayerPct < -0.5 ? 'baja' : d.ayerPct > 0.5 ? 'sube' : 'plano') + '">' +
       (d.ayerPct > 0 ? '+' : '') + d.ayerPct.toFixed(0) + '%</span><div class="sombraTxt">' +
       (d.ayerBase === 'mejor' ? 'mejor ' : '') + fmt(d.ayer) + '</div>') + '</td>' : '') +
@@ -816,22 +867,53 @@ function fila(d, i) {
       (d.reviews ? '<div class="sombraTxt">' + d.reviews + '</div>' : '') + '</td>' +
     '<td style="color:var(--muted)">' + esc(d.tipo) + '</td><td>' + esc(d.zona) + '</td>' +
     '<td><a href="' + esc(d.url) + '" target="_blank" rel="noopener noreferrer">' + esc(d.nombre) + '</a>' +
-      '<button type="button" class="copiar" data-url="' + esc(d.url) + '" title="Copiar el link" aria-label="Copiar el link">⧉</button>' +
+      '<button type="button" class="copiar" data-url="' + esc(d.url) + '" title="Copiar el link de Agoda">⧉</button>' +
       etiquetasDe(d) + '</td>' +
   '</tr>';
 }
 
+function bandas() {
+  var p = activa();
+  var html = '<div class="meta" style="margin:2px 2px 10px">' + esc(p.ciudad) + ' · ' + esc(p.checkIn) + ' · ' +
+    (p.noches > 1 ? p.noches + ' noches' : '1 noche') + ' · ' + p.huespedes + ' huéspedes · ' +
+    p.datos.length + ' alojamientos' + (p.muestras ? ' · ' + p.muestras + ' muestras de precio' : '') + '</div>';
+
+  html += '<div class="tesis">Agoda muestra en sus tarjetas el precio <b>sin impuestos</b>. Acá el orden es por <b>precio final</b>' +
+    (p.recargoMax > 1 ? ', y el recargo llega al <b>' + p.recargoMax.toFixed(0) + '%</b> en esta búsqueda' : '') +
+    ': el que parece más barato muchas veces no lo es.</div>';
+
+  var cmp = p.comparacion;
+  if (cmp) {
+    var contra = cmp.piso && !cmp.aHora
+      ? 'con <b>el precio más bajo que tocó cada uno la noche del ' + esc(cmp.checkIn) + '</b>'
+      : cmp.piso
+        ? 'con <b>la noche del ' + esc(cmp.checkIn) + '</b> (' + cmp.aHora + ' a la misma hora ~' + esc(cmp.hora) + ', ' + cmp.piso + ' contra el mejor precio de esa noche)'
+        : 'con <b>la noche del ' + esc(cmp.checkIn) + '</b> a la misma hora (~' + esc(cmp.hora) + ')';
+    var aclara = cmp.piso ? ' Ese mejor precio es el piso de toda la noche, así que esa parte tira para arriba; van con el borde punteado.' : '';
+    html += '<div class="tesis ayer">Comparado ' + contra + ': <b>' + cmp.masBaratos + '</b> están más baratos, ' +
+      cmp.masCaros + ' más caros, sobre ' + cmp.total + ' comparables.' + aclara + '</div>';
+  }
+
+  if (ENMARCADO) {
+    html += '<div class="tesis nota">Esta página está embebida, y el navegador puede no dejarla abrir pestañas nuevas. ' +
+      'Si al tocar una ficha no pasa nada, usá <b>Copiar link</b> y pegalo en una pestaña.</div>';
+  }
+  $('bandas').innerHTML = html;
+  $('marcaAyer').hidden = !cmp;
+}
+
 function pintar() {
+  var p = activa();
   var f = ordenados();
   var barato = null, recargoAca = 0;
   for (var i = 0; i < f.length; i++) {
-    var p = precioDe(f[i]);
-    if (p != null && (barato == null || p < barato)) barato = p;
+    var v = precioDe(f[i]);
+    if (v != null && (barato == null || v < barato)) barato = v;
     if (f[i].impPct != null && f[i].impPct > recargoAca) recargoAca = f[i].impPct;
   }
   $('resumen').innerHTML =
-    '<span><span class="grande">' + f.length + '</span> de ' + DATOS.length + ' alojamientos</span>' +
-    (barato != null ? '<span>más barato <span class="verde">' + fmt(barato) + ' ' + MONEDA + '</span></span>' : '') +
+    '<span><span class="grande">' + f.length + '</span> de ' + p.datos.length + ' alojamientos</span>' +
+    (barato != null ? '<span>más barato <span class="verde">' + fmt(barato) + ' ' + p.moneda + '</span></span>' : '') +
     (recargoAca > 1 ? '<span>recargo más alto acá: <span class="n" style="color:var(--markup);font-weight:600">+' + recargoAca.toFixed(0) + '%</span></span>' : '');
 
   var fichas = estado.vista === 'fichas';
@@ -840,7 +922,7 @@ function pintar() {
   $('nada').hidden = f.length > 0;
 
   if (fichas) { $('rejilla').innerHTML = f.map(ficha).join(''); $('cuerpoTabla').innerHTML = ''; }
-  else { $('cuerpoTabla').innerHTML = f.map(fila).join(''); $('rejilla').innerHTML = ''; }
+  else { cabeceraTabla(); $('cuerpoTabla').innerHTML = f.map(fila).join(''); $('rejilla').innerHTML = ''; }
   guardar();
 }
 
@@ -850,13 +932,16 @@ function sincronizar() {
     ch.setAttribute('aria-pressed', sel ? 'true' : 'false');
     if (sel) ch.classList.remove('escondido');
   });
+  document.querySelectorAll('.solapa').forEach(function (s) {
+    s.setAttribute('aria-pressed', s.dataset.pestana === estado.pestana ? 'true' : 'false');
+  });
   $('fmax').value = estado.max == null ? '' : estado.max;
   $('fnota').value = estado.nota == null ? '' : estado.nota;
   $('frev').value = estado.reviews == null ? '' : estado.reviews;
   $('ftexto').value = estado.texto;
   $('fcanc').checked = estado.canc;
   $('fbaja').checked = estado.baja;
-  if ($('fayer')) $('fayer').checked = estado.mejorQueAyer;
+  $('fayer').checked = estado.mejorQueAyer;
   $('forden').value = estado.orden;
   $('fsentido').textContent = estado.asc ? '↑ menor primero' : '↓ mayor primero';
   $('mFinal').setAttribute('aria-pressed', estado.conImpuestos ? 'true' : 'false');
@@ -864,6 +949,14 @@ function sincronizar() {
   $('vFichas').setAttribute('aria-pressed', estado.vista === 'fichas' ? 'true' : 'false');
   $('vLista').setAttribute('aria-pressed', estado.vista === 'lista' ? 'true' : 'false');
 }
+
+document.querySelectorAll('.solapa').forEach(function (s) {
+  s.addEventListener('click', function () {
+    estado.pestana = s.dataset.pestana;
+    sincronizar(); bandas(); pintar();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+});
 
 document.querySelectorAll('.chip[data-grupo]').forEach(function (ch) {
   ch.addEventListener('click', function () {
@@ -880,20 +973,24 @@ $('frev').addEventListener('input', function () { estado.reviews = numeroDe(this
 $('ftexto').addEventListener('input', function () { estado.texto = this.value; pintar(); });
 $('fcanc').addEventListener('change', function () { estado.canc = this.checked; pintar(); });
 $('fbaja').addEventListener('change', function () { estado.baja = this.checked; pintar(); });
-if ($('fayer')) $('fayer').addEventListener('change', function () { estado.mejorQueAyer = this.checked; pintar(); });
-$('forden').addEventListener('change', function () { estado.orden = this.value; marcarColumna(); pintar(); });
-$('fsentido').addEventListener('click', function () { estado.asc = !estado.asc; sincronizar(); marcarColumna(); pintar(); });
+$('fayer').addEventListener('change', function () { estado.mejorQueAyer = this.checked; pintar(); });
+$('forden').addEventListener('change', function () { estado.orden = this.value; pintar(); });
+$('fsentido').addEventListener('click', function () { estado.asc = !estado.asc; sincronizar(); pintar(); });
 $('mFinal').addEventListener('click', function () { estado.conImpuestos = true; sincronizar(); pintar(); });
 $('mBase').addEventListener('click', function () { estado.conImpuestos = false; sincronizar(); pintar(); });
 $('vFichas').addEventListener('click', function () { estado.vista = 'fichas'; sincronizar(); pintar(); });
 $('vLista').addEventListener('click', function () { estado.vista = 'lista'; sincronizar(); pintar(); });
 
 $('preset').addEventListener('click', function () {
-  estado.tipos = PRESET.tipos.slice(); estado.zonas = PRESET.zonas.slice();
+  estado.tipos = ${JSON.stringify(estadoInicial.tipos)}.slice();
+  estado.zonas = ${JSON.stringify(estadoInicial.zonas)}.slice();
   sincronizar(); pintar();
 });
 $('limpiar').addEventListener('click', function () {
-  estado = Object.assign({}, VACIO, { conImpuestos: estado.conImpuestos, vista: estado.vista, orden: estado.orden, asc: estado.asc });
+  estado = Object.assign({}, VACIO, {
+    pestana: estado.pestana, conImpuestos: estado.conImpuestos, vista: estado.vista,
+    orden: estado.orden, asc: estado.asc,
+  });
   sincronizar(); pintar();
 });
 
@@ -911,39 +1008,10 @@ if (verZonas) {
   verZonas.addEventListener('click', function () { plegado = !plegado; plegar(); });
 }
 
-function marcarColumna() {
-  document.querySelectorAll('th[data-k]').forEach(function (x) {
-    x.classList.remove('activa');
-    x.textContent = x.textContent.replace(/ [▲▼]$/, '');
-    if (x.dataset.k === estado.orden) { x.classList.add('activa'); x.textContent += estado.asc ? ' ▲' : ' ▼'; }
-  });
-}
-document.querySelectorAll('th[data-k]').forEach(function (th) {
-  th.addEventListener('click', function () {
-    var k = th.dataset.k;
-    if (k === '_i') return;
-    if (estado.orden === k) estado.asc = !estado.asc;
-    else { estado.orden = k; estado.asc = ['nota', 'bajadaPct', 'impPct', 'ayerPct'].indexOf(k) < 0; }
-    sincronizar(); marcarColumna(); pintar();
-  });
-});
-
 /*
- * Abrir el link depende de donde este corriendo la pagina.
- *
- * Como archivo suelto: el ancla nativa abre y nadie tiene que meterse.
- *
- * Adentro de un iframe con sandbox (una pagina publicada, por ejemplo) depende de
- * los permisos que le hayan dado, y medido con clicks de verdad da asi:
- *     permisos                <a target=_blank>   open(...,'noopener')   open(...)
- *     allow-scripts           bloqueado           bloqueado              bloqueado
- *     + allow-popups          abre                bloqueado              abre
- * O sea que con noopener en el tercer argumento nunca abre, y ademas devuelve
- * null aunque haya abierto, asi que no sirve ni para detectar el bloqueo.
- * Sin allow-popups no abre nada, y lo unico que queda es copiar la direccion.
- *
- * Entonces: si no estamos enmarcados no tocamos nada. Si lo estamos, probamos
- * window.open sin noopener y, si no sale, copiamos al portapapeles y avisamos.
+ * Los links son anclas nativas y nadie intercepta el click cuando la pagina esta
+ * suelta. Enmarcada, probamos window.open sin noopener (con noopener devuelve
+ * null aunque haya abierto) y, si no sale, copiamos la direccion.
  */
 function copiarAlPortapapeles(texto) {
   if (navigator.clipboard && window.isSecureContext) {
@@ -963,9 +1031,8 @@ function viejoCopiar(texto) {
   campo.remove();
   return listo;
 }
-
 function avisar(texto, ok) {
-  var vieja = document.getElementById('aviso');
+  var vieja = $('aviso');
   if (vieja) vieja.remove();
   var caja = document.createElement('div');
   caja.id = 'aviso';
@@ -975,7 +1042,6 @@ function avisar(texto, ok) {
   document.body.appendChild(caja);
   setTimeout(function () { caja.remove(); }, 3200);
 }
-
 function copiarYAvisar(url, boton) {
   return copiarAlPortapapeles(url).then(function (listo) {
     if (boton) {
@@ -989,41 +1055,32 @@ function copiarYAvisar(url, boton) {
     return listo;
   });
 }
-
 document.addEventListener('click', function (ev) {
   var boton = ev.target.closest ? ev.target.closest('.copiar') : null;
   if (boton) {
-    ev.preventDefault();
-    ev.stopPropagation();
+    ev.preventDefault(); ev.stopPropagation();
     return copiarYAvisar(boton.dataset.url, boton);
   }
-
-  if (!ENMARCADO) return;   // archivo suelto: el ancla nativa se encarga sola
+  if (!ENMARCADO) return;
   var a = ev.target.closest ? ev.target.closest('a[target="_blank"]') : null;
   if (!a || ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
   ev.preventDefault();
-  var url = a.getAttribute('href');
   var abierta = null;
-  try { abierta = window.open(url, '_blank'); } catch (e) { abierta = null; }
-  if (!abierta) copiarYAvisar(url, null);
+  try { abierta = window.open(a.getAttribute('href'), '_blank'); } catch (e) { abierta = null; }
+  if (!abierta) copiarYAvisar(a.getAttribute('href'), null);
 });
 
-if (ENMARCADO) {
-  var nota = document.getElementById('notaEnmarcado');
-  if (nota) nota.hidden = false;
-}
-
 sincronizar();
-marcarColumna();
+bandas();
 pintar();
 </script>`;
 
-  if (fragmento) return `<title>${escHtml(nombre ?? titulo)}</title>${ESTILOS}${CUERPO}${GUION}`;
+  if (fragmento) return `<title>${escHtml(nombre ?? tituloPagina)}</title>${ESTILOS}${CUERPO}${GUION}`;
 
   return `<!doctype html>
 <html lang="es"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${escHtml(titulo)} — precio final Agoda</title>
+<title>${escHtml(tituloPagina)} — precio final Agoda</title>
 ${ESTILOS}
 </head><body>${CUERPO}${GUION}</body></html>`;
 }

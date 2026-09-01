@@ -149,6 +149,26 @@ Te muestra la línea de crontab lista; con `--instalar` la pone sola, y con
 `--quitar` la saca. En Windows te da el comando de `schtasks`. Los filtros y
 opciones que pases se arrastran a la tarea.
 
+### Todo en un archivo
+
+Una solapa por búsqueda, en el mismo HTML:
+
+```bash
+agoda reporte --pestanas 2026-09-04 --tipo depto,casa --html reportes/agoda.html
+```
+
+Los filtros son **únicos y se comparten** entre solapas: los chips salen de la
+unión de todas, así que cambiar de noche no te resetea lo que elegiste. La banda
+de comparación y el filtro *vs la noche anterior* aparecen solo en las solapas que
+tengan con qué comparar.
+
+Las fotos también se comparten — el mismo depto suele estar en varias noches — así
+que dos solapas no pesan el doble: en la prueba, 279 fotos únicas para 373 filas.
+
+`--recortar` hace que los filtros **saquen filas del archivo** en vez de solo
+dejar los chips marcados. Sin eso el archivo lleva todo y pesa mucho más; con las
+fotos incrustadas la diferencia fue de 35 MB a 9 MB.
+
 ### Varias búsquedas a la vez
 
 Cada tarea lleva nombre, así que podés seguir la noche de hoy **y** una fecha fija

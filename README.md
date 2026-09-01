@@ -45,6 +45,22 @@ npm link                          # opcional: deja el comando `agoda` en el PATH
 
 Sin `npm link` corrés todo con `node bin/agoda.mjs ...`.
 
+## Dejarlo andando solo (una vez)
+
+```bash
+./scripts/instalar.sh
+```
+
+Instala las dependencias, recupera las muestras ya guardadas en `datos/`, deja dos
+tareas horarias en el crontab (la noche de hoy y una fecha fija) y toma la primera
+muestra para verificar. Después no hay que tocar nada: `reportes/hoy.html` se
+regenera solo cada hora.
+
+Corre en tu máquina, así que **no consume nada de la nube**. Solo necesita que la
+compu esté prendida en la franja que sigas.
+
+Para pararlo: `node bin/agoda.mjs programar --quitar --todo`
+
 ## Arranque rápido
 
 ```bash

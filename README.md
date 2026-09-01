@@ -212,6 +212,26 @@ tocar nada. En macOS, cron necesita que le des Acceso Total al Disco a tu termin
 Si preferís no tocar el crontab, `agoda seguir --cada 60` hace lo mismo mientras
 tengas la terminal abierta.
 
+### Correrlo sin depender de tu máquina
+
+Si preferís que no dependa de tener la compu prendida, la corrida puede vivir en
+un servidor efímero. Ahí la base local no sobrevive, así que cada muestra se
+guarda además como un archivo del repo y la base se reconstruye al arrancar:
+
+```bash
+export AGODA_TZ=America/Argentina/Buenos_Aires   # sin esto, un servidor en UTC
+                                                 # te corre las horas 3 lugares
+node bin/agoda.mjs sincronizar                   # rearma la base desde datos/
+node bin/agoda.mjs buscar "Buenos Aires" --paginas todas --silencioso --serie datos
+git add datos/ && git commit -m "Muestra" && git push
+```
+
+Cada muestra es un archivo suelto e inmutable en `datos/<noche>/<momento>.json`,
+así que git guarda cada uno una sola vez. Guardar el SQLite entero no serviría:
+cada commit dejaría una copia completa de un binario que crece.
+
+`agoda sincronizar` es idempotente, y un archivo ilegible no frena a los demás.
+
 ### ¿Está corriendo?
 
 ```bash
@@ -572,6 +592,6 @@ propio, apuntá `AGODA_CHROME` a su ejecutable.
 npm test
 ```
 
-73 tests sobre el parseo (con una respuesta real de Agoda como fixture), los
+78 tests sobre el parseo (con una respuesta real de Agoda como fixture), los
 filtros, el orden, las fechas, las miniaturas, los links, el armado del cron, el
 cruce entre noches a la misma hora y el cálculo de bajadas.

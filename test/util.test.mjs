@@ -93,3 +93,28 @@ test('un host desconocido o una URL rota se devuelven tal cual', () => {
   assert.equal(miniatura(null), null);
   assert.equal(miniatura(''), null);
 });
+
+// --- links a la ficha de Agoda ----------------------------------------------
+
+const { urlConFechas } = await import('../src/salida.mjs');
+
+test('el link a la propiedad lleva las fechas y la ocupacion de la busqueda', () => {
+  const u = new URL(urlConFechas('https://www.agoda.com/hotel-x/hotel/all/buenos-aires-ar.html', {
+    check_in: '2026-09-01', los: 2, adultos: 3, ninos: 1, habitaciones: 2, moneda: 'ARS',
+  }));
+  assert.equal(u.searchParams.get('checkIn'), '2026-09-01');
+  assert.equal(u.searchParams.get('los'), '2');
+  assert.equal(u.searchParams.get('adults'), '3');
+  assert.equal(u.searchParams.get('children'), '1');
+  assert.equal(u.searchParams.get('rooms'), '2');
+  assert.equal(u.searchParams.get('currency'), 'ARS');
+});
+
+test('urlConFechas no rompe con datos faltantes', () => {
+  assert.equal(urlConFechas(null, { check_in: '2026-09-01' }), null);
+  assert.equal(urlConFechas('https://www.agoda.com/x.html', null), 'https://www.agoda.com/x.html');
+  assert.equal(urlConFechas('no-es-url', { los: 1 }), 'no-es-url');
+  const u = new URL(urlConFechas('https://www.agoda.com/x.html', { check_in: '2026-09-01', los: 1 }));
+  assert.equal(u.searchParams.get('checkIn'), '2026-09-01');
+  assert.equal(u.searchParams.get('adults'), null, 'lo que no hay no se inventa');
+});

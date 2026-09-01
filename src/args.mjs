@@ -99,6 +99,7 @@ ${B('SALIDA')}
   --busqueda <id>      Sobre que busqueda guardada trabajar (ver "agoda buscas")
   --csv <archivo>      Exporta a CSV      --html <archivo> reporte navegable
   --fotos <modo>       url (por defecto), incrustadas (archivo autonomo) o ninguna
+  --fotos-ancho <px>   Ancho de las miniaturas (400)
   --json               Volca JSON crudo por stdout
 
 ${B('SEGUIMIENTO')}   ${G('(comando seguir)')}

@@ -193,9 +193,14 @@ agoda reporte --tipo depto,casa --zona nunez,belgrano,palermo,recoleta --html re
 ```
 
 Un archivo solo, sin dependencias, que abrís en el navegador. Los filtros que le
-pasás **no recortan la tabla**: dejan los chips ya marcados al abrir, y desde la
+pasás **no recortan nada**: dejan los chips ya marcados al abrir, y desde la
 página los tildás y destildás como quieras.
 
+- **Dos vistas.** *Fichas* con la foto grande (314px), para mirar antes de decidir,
+  y *lista* para comparar muchos precios de una. En las fichas el precio final va
+  estampado sobre la foto y el recargo oculto como chip arriba a la derecha.
+- **Los links abren la ficha de Agoda con tus fechas y tu ocupación** ya cargadas,
+  no la página genérica.
 - **Tipo y zona se eligen de a varios.** Chips con la cantidad de cada uno, así
   que podés marcar depto + casa, o Núñez + Belgrano + Palermo + Recoleta.
 - **Precio final vs. el que muestra Agoda.** Un botón cambia entre los dos, y el
@@ -224,6 +229,20 @@ vean si publicás la página en algún lado que bloquee imágenes de otros domin
 (bastante común: las fotos de Agoda salen de `agoda.net` y `bstatic.com`).
 
 `--fotos ninguna` deja los recuadros vacíos y el archivo bien liviano.
+`--fotos-ancho` cambia el tamaño que se pide (400 por defecto); bajalo a 320 si
+incrustás muchas y el archivo te queda pesado.
+
+### Si publicás la página en algún lado
+
+Dos cosas se rompen cuando la página vive dentro de un iframe con sandbox
+(páginas publicadas, algunos visores, ciertos intranets):
+
+1. **Las fotos externas quedan bloqueadas por CSP**, sin ningún error visible.
+   Se arregla con `--fotos incrustadas`.
+2. **`target="_blank"` queda bloqueado**, así que los links no hacen nada al
+   clickearlos. La página lo detecta sola: si `window.open` no abre, muestra una
+   barra abajo con la dirección lista para copiar. Ctrl+click y "abrir en pestaña
+   nueva" siguen funcionando como siempre.
 
 El botón **Mis filtros** vuelve a la preselección con la que generaste el archivo.
 
@@ -304,5 +323,5 @@ propio, apuntá `AGODA_CHROME` a su ejecutable.
 npm test
 ```
 
-35 tests sobre el parseo (con una respuesta real de Agoda como fixture), los
-filtros, el orden, las fechas, las miniaturas y el cálculo de bajadas.
+37 tests sobre el parseo (con una respuesta real de Agoda como fixture), los
+filtros, el orden, las fechas, las miniaturas, los links y el cálculo de bajadas.

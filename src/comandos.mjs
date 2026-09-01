@@ -471,7 +471,7 @@ function preseleccionar(filas, op) {
  * autonomo (sirve sin internet, y es lo unico que funciona si lo publicas en
  * algun lado que bloquee imagenes de otros dominios).
  */
-async function resolverFotos(filas, op) {
+async function resolverFotos(filas, op, anchoFoto) {
   const modo = normalizar(op.fotos ?? 'url');
   if (modo === 'url') return null;
   if (modo === 'ninguna' || modo === 'sin') return new Map();
@@ -482,7 +482,8 @@ async function resolverFotos(filas, op) {
   const aviso = avisoProxy();
   if (aviso) log(aviso);
 
-  const urls = filas.map((f) => miniatura(f.imagen)).filter(Boolean);
+  // Mismo ancho que va a pedir la pagina, si no las claves no coinciden.
+  const urls = filas.map((f) => miniatura(f.imagen, anchoFoto)).filter(Boolean);
   log(c('gray', `  bajando ${new Set(urls).size} miniaturas...`));
   const { fotos, total, fallidas, bytes } = await incrustar(urls, {
     alProgreso: (hechas, cuantas) => process.stderr.write(c('gray', `\r  ${hechas}/${cuantas}   `)),
@@ -504,11 +505,12 @@ export async function cmdReporte(db, op, pos) {
   const pre = preseleccionar(filas, op);
   const muestras = DB.listarSnapshots(db, busqueda.id, 999).length;
 
-  const fotos = await resolverFotos(filas, op);
+  const anchoFoto = num(op['fotos-ancho'], 400);
+  const fotos = await resolverFotos(filas, op, anchoFoto);
 
   const ruta = op.html || `reportes/agoda-${busqueda.check_in}.html`;
   const destino = OUT.guardar(ruta, OUT.reporteHtml(filas, {
-    busqueda, historiales: historiales(db, busqueda.id, filas), preseleccion: pre, muestras, fotos,
+    busqueda, historiales: historiales(db, busqueda.id, filas), preseleccion: pre, muestras, fotos, anchoFoto,
   }));
 
   log(`\n  Reporte con ${filas.length} alojamientos: ${c('bold', destino)}`);

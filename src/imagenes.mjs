@@ -21,7 +21,8 @@ export function miniatura(url, ancho = 120) {
 
     // bstatic.com codifica el tamano en la ruta: /hotel/max500/foto.jpg
     if (/(^|\.)bstatic\.com$/.test(u.hostname)) {
-      const escalon = ancho <= 100 ? 'max100' : ancho <= 150 ? 'max150' : ancho <= 200 ? 'max200' : 'max300';
+      const escalon = ancho <= 100 ? 'max100' : ancho <= 150 ? 'max150' : ancho <= 200 ? 'max200'
+        : ancho <= 300 ? 'max300' : ancho <= 400 ? 'max400' : 'max500';
       u.pathname = u.pathname.replace(/\/(max|square)\d+\//, `/${escalon}/`);
       return u.toString();
     }

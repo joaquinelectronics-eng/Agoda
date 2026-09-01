@@ -225,6 +225,33 @@ export function historial(db, busquedaId, propertyId) {
   `).all(busquedaId, propertyId);
 }
 
+/** Todas las observaciones de una busqueda, para cruzarlas entre dias. */
+export function observaciones(db, busquedaId) {
+  return db.prepare(`
+    SELECT pr.property_id, pr.por_noche, pr.por_noche_sin_imp, pr.total, pr.disponible, s.tomado
+    FROM precios pr JOIN snapshots s ON s.id = pr.snapshot_id
+    WHERE s.busqueda_id = ? AND pr.por_noche IS NOT NULL
+    ORDER BY s.tomado ASC, s.id ASC
+  `).all(busquedaId);
+}
+
+/**
+ * La misma busqueda pero para otra noche: mismo destino, misma gente, misma
+ * moneda, distinto check_in. Es lo que permite comparar noche contra noche.
+ */
+export function busquedaHermana(db, busqueda, checkIn) {
+  return db.prepare(`
+    SELECT * FROM busquedas
+    WHERE check_in = ? AND los = ? AND moneda = ?
+      AND IFNULL(ciudad_id, '') = IFNULL(?, '')
+      AND IFNULL(adultos, 0) = IFNULL(?, 0)
+      AND IFNULL(ninos, 0) = IFNULL(?, 0)
+      AND IFNULL(habitaciones, 0) = IFNULL(?, 0)
+    LIMIT 1
+  `).get(checkIn, busqueda.los, busqueda.moneda, busqueda.ciudad_id,
+         busqueda.adultos, busqueda.ninos, busqueda.habitaciones);
+}
+
 export function buscarPropiedades(db, texto) {
   return db.prepare(`
     SELECT property_id, nombre, zona, ciudad, tipo, nota FROM propiedades

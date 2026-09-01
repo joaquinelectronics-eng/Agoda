@@ -8,6 +8,7 @@ import * as DB from './db.mjs';
 import { abrirNavegador } from './browser.mjs';
 import { construirUrl, leerUrl, ajustarUrl, resolverDestino, scrapear } from './agoda.mjs';
 import { filtrar, enriquecer, ordenar, parsearCoords, idsDeTipo } from './filtros.mjs';
+import { compararConDiaAnterior, indicePorPropiedad } from './comparar.mjs';
 import * as OUT from './salida.mjs';
 import { miniatura, incrustar, avisoProxy } from './imagenes.mjs';
 import {
@@ -532,18 +533,30 @@ async function generarReporte(db, busqueda, op, { ruta = null, silencioso = fals
   const anchoFoto = num(op['fotos-ancho'], 400);
   const fotos = await resolverFotos(filas, op, anchoFoto, { silencioso });
 
+  // Contra la noche anterior a la misma hora, si esa noche esta guardada.
+  const comp = compararConDiaAnterior(db, busqueda, {
+    diasAtras: num(op.contra, 1),
+    toleranciaMin: num(op.tolerancia, 90),
+    hora: op.hora === undefined ? null : num(op.hora),
+  });
+  const contraAyer = comp.hermana ? indicePorPropiedad(comp) : null;
+
   const destino = OUT.guardar(ruta || op.html || `reportes/agoda-${busqueda.check_in}.html`,
     OUT.reporteHtml(filas, {
       busqueda, historiales: historiales(db, busqueda.id, filas), preseleccion: pre, muestras, fotos, anchoFoto,
+      contraAyer, comparacion: comp,
     }));
-  return { destino, filas, pre };
+  return { destino, filas, pre, comp };
 }
 
 export async function cmdReporte(db, op, pos) {
   const busqueda = elegirBusqueda(db, op, pos);
-  const { destino, filas, pre } = await generarReporte(db, busqueda, op);
+  const { destino, filas, pre, comp } = await generarReporte(db, busqueda, op);
 
   log(`\n  Reporte con ${filas.length} alojamientos: ${c('bold', destino)}`);
+  if (comp?.hermana) {
+    log(c('gray', `  Comparado contra la noche del ${comp.hermana.check_in} a las ~${comp.referencia?.etiqueta} (${comp.filas.length} en comun)`));
+  }
   if (pre.tipos.length || pre.zonas.length) {
     log(c('gray', `  Filtros ya marcados al abrir: ${[...pre.tipos, ...pre.zonas].join(', ')}`));
   }
@@ -607,6 +620,67 @@ function elegirBusqueda(db, op, pos) {
   }
   if (!cand.length) throw new Error('Ninguna busqueda guardada coincide con eso. Mirá "agoda buscas".');
   return cand[0];
+}
+
+// --- comparar contra la noche anterior ---------------------------------------
+
+export async function cmdComparar(db, op, pos) {
+  const busqueda = elegirBusqueda(db, op, pos);
+  const diasAtras = num(op.contra, 1);
+  const r = compararConDiaAnterior(db, busqueda, {
+    diasAtras,
+    hora: op.hora === undefined ? null : num(op.hora),
+    toleranciaMin: num(op.tolerancia, 90),
+  });
+
+  if (!r.hermana) {
+    throw new Error(
+      `No tengo guardada la noche del ${r.checkInAnterior} para esa misma busqueda.\n` +
+      `La comparacion necesita haber muestreado las dos noches: dejala corriendo con "agoda programar".`
+    );
+  }
+  if (!r.filas.length) {
+    warn(`Las dos noches estan guardadas pero no hay muestras a horas parecidas (tolerancia ${num(op.tolerancia, 90)} min).`);
+    log(c('gray', '  Proba con --hora <h> o subiendo --tolerancia.'));
+    return;
+  }
+
+  const conFiltros = filtrar(
+    r.filas.map((f) => ({ ...f, ...(db.prepare('SELECT * FROM propiedades WHERE property_id = ?').get(f.property_id) ?? {}), por_noche: f.hoy, disponible: 1 })),
+    opcionesFiltro(op),
+  );
+  const listas = conFiltros
+    .map((f) => ({ ...f, _precio: f.hoy }))
+    .sort((a, b) => (a.pct ?? 0) - (b.pct ?? 0));
+
+  if (op.json) { log(JSON.stringify(listas, null, 2)); return; }
+
+  encabezado(busqueda);
+  log(c('gray', `contra la noche del ${r.hermana.check_in}, cruzando cada uno a las ~${r.referencia.etiqueta}`));
+  log('');
+  const limite = num(op.limite, 25);
+  log(OUT.tablaComparacion(listas.slice(0, limite), { moneda: busqueda.moneda }));
+
+  const bajaron = listas.filter((f) => f.delta < 0);
+  const subieron = listas.filter((f) => f.delta > 0);
+  const medianaPct = mediana(listas.map((f) => f.pct).filter((x) => x != null));
+  log('');
+  const iguales = listas.length - bajaron.length - subieron.length;
+  log(`  ${c('bold', String(listas.length))} comparables · ${c('green', `${bajaron.length} mas baratos que ${diasAtras === 1 ? 'anoche' : 'esa noche'}`)} · ` +
+      `${c('red', `${subieron.length} mas caros`)}` + (iguales ? c('gray', ` · ${iguales} igual`) : ''));
+  if (medianaPct != null) {
+    const signo = medianaPct < 0 ? c('green', fmtPct(medianaPct)) : c('red', fmtPct(medianaPct));
+    log(`  En conjunto, la noche esta ${signo} respecto de la anterior a la misma hora.`);
+  }
+  if (r.sinPar) log(c('gray', `  ${r.sinPar} publicaciones de hoy no estaban esa noche (no se pueden comparar).`));
+  if (listas.length > limite) log(c('gray', `  (mostrando ${limite} de ${listas.length}; usa --limite)`));
+}
+
+function mediana(xs) {
+  if (!xs.length) return null;
+  const o = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(o.length / 2);
+  return o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2;
 }
 
 // --- programar ---------------------------------------------------------------

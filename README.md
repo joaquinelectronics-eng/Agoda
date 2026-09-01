@@ -70,6 +70,7 @@ agoda reporte --html reportes/hoy.html
 | `agoda bajadas` | Ranking de cuánto bajó cada precio desde que lo seguís |
 | `agoda seguir <destino>` | Toma muestras cada X minutos y avisa cuando algo baja |
 | `agoda programar <destino>` | Deja el seguimiento corriendo solo, hora a hora |
+| `agoda comparar` | Hoy contra la noche anterior, a la misma hora del día |
 | `agoda historial <id\|nombre>` | La curva de precio de un alojamiento |
 | `agoda reporte` | Genera un HTML filtrable y ordenable |
 | `agoda buscas` | Lista las búsquedas que venís siguiendo |
@@ -166,6 +167,42 @@ tocar nada. En macOS, cron necesita que le des Acceso Total al Disco a tu termin
 
 Si preferís no tocar el crontab, `agoda seguir --cada 60` hace lo mismo mientras
 tengas la terminal abierta.
+
+## Comparar contra la noche anterior
+
+Los precios siguen una curva a lo largo del día, así que comparar el de hoy a las
+19:00 contra el de ayer al mediodía no dice nada. `comparar` cruza cada
+alojamiento **a la misma hora del día**:
+
+```bash
+agoda comparar                 # última muestra de hoy vs esa misma hora anoche
+agoda comparar --hora 19       # las 19:00 de hoy vs las 19:00 de anoche
+agoda comparar --contra 7      # contra la misma noche de la semana pasada
+```
+
+```
+Buenos Aires · 2026-09-01 · 1 noche · 2 adulto(s) · USD
+contra la noche del 2026-08-31, cruzando cada uno a las ~19:00
+
+  #    hoy  la noche anterior     dif     %  nota  tipo    zona         alojamiento
+  ─  ─────  ─────────────────  ──────  ────  ────  ──────  ───────────  ──────────────────────
+  1  22,27              32,60  -10,33  -32%   7.6  hotel   Monserrat    Hotel El Porteno
+  2  33,35              46,09  -12,74  -28%   8.5  hostel  Palermo      Malevo Murana Hostel
+  3  39,45              51,60  -12,15  -24%   7.6  depto   Monserrat    Apart Buenos Aires Alsina
+
+  81 comparables · 18 mas baratos que anoche · 25 mas caros · 38 igual
+  En conjunto, la noche esta -4% respecto de la anterior a la misma hora.
+```
+
+Si las dos noches no tienen muestras a horas parecidas, **te lo dice en vez de
+comparar cualquier cosa**. `--tolerancia <min>` afloja ese margen (90 por defecto);
+subilo solo sabiendo que el resultado vale menos.
+
+En la página, cada ficha muestra un chip `▼ -13% vs anoche`, la lista tiene su
+columna, y hay filtro *solo más baratos que anoche* y orden por esa diferencia.
+
+Para que esto tenga datos hace falta haber muestreado **las dos noches a la misma
+hora**, que es exactamente lo que hace `agoda programar`.
 
 ## Seguir los precios
 
@@ -282,13 +319,16 @@ Dos cosas se rompen cuando la página vive dentro de un iframe con sandbox
    | `allow-scripts` | bloqueado | bloqueado | bloqueado |
    | `+ allow-popups` | **abre** | bloqueado | abre |
 
-   O sea: **el ancla nativa es la que más lejos llega**, así que la página no
-   intercepta el click. Dos trampas que costaron un rato: `window.open` con
-   `noopener` en el tercer argumento **devuelve `null` aunque haya abierto** (por
-   especificación, corta la referencia), así que no sirve ni para detectar si
-   funcionó; y hacerle `preventDefault()` al click mata justamente el ancla que sí
-   anda. Para el caso en que el navegador bloquee todo, cada ficha tiene un botón
-   de copiar el link.
+   Dos trampas que costaron un rato: `window.open` con `noopener` en el tercer
+   argumento **devuelve `null` aunque haya abierto** (por especificación, corta la
+   referencia), así que no sirve ni para detectar si funcionó; y hacerle
+   `preventDefault()` al click mata justamente el ancla que sí anda.
+
+   La página se adapta sola según dónde corra. **Suelta** no intercepta nada y el
+   ancla abre normal. **Embebida** intenta `window.open` sin `noopener` y, si el
+   navegador no deja (el caso `allow-scripts` a secas, donde no abre nada),
+   **copia el link al portapapeles y te avisa**; el botón pasa a decir "Copiar
+   link" y aparece una nota arriba explicándolo.
 
 El botón **Mis filtros** vuelve a la preselección con la que generaste el archivo.
 
@@ -340,6 +380,7 @@ src/agoda.mjs     URL, resolución de destino, captura y repetición del pedido
 src/parse.mjs     JSON de Agoda -> filas planas
 src/db.mjs        SQLite: búsquedas, muestras, precios, evolución
 src/filtros.mjs   filtros, nota ajustada, orden por valor
+src/comparar.mjs  cruce de una noche contra otra a la misma hora
 src/imagenes.mjs  miniaturas y fotos incrustadas
 src/salida.mjs    tabla de consola, CSV y reporte HTML
 src/comandos.mjs  los comandos del CLI
@@ -369,6 +410,6 @@ propio, apuntá `AGODA_CHROME` a su ejecutable.
 npm test
 ```
 
-42 tests sobre el parseo (con una respuesta real de Agoda como fixture), los
-filtros, el orden, las fechas, las miniaturas, los links, el armado del cron y el
-cálculo de bajadas.
+50 tests sobre el parseo (con una respuesta real de Agoda como fixture), los
+filtros, el orden, las fechas, las miniaturas, los links, el armado del cron, el
+cruce entre noches a la misma hora y el cálculo de bajadas.

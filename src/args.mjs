@@ -65,6 +65,7 @@ ${B('COMANDOS')}
   ${B('buscar')} <destino>      Baja las publicaciones, las guarda y las muestra ordenadas.
   ${B('ver')}                   Muestra el ultimo resultado guardado (sin tocar internet).
   ${B('bajadas')}               Ranking de cuanto bajo cada precio desde que lo seguis.
+  ${B('comparar')}              Hoy contra la noche anterior, a la misma hora del dia.
   ${B('seguir')} <destino>      Toma muestras cada X minutos y avisa cuando algo baja.
   ${B('historial')} <id|nombre> Curva de precio de un alojamiento.
   ${B('reporte')}               Genera un HTML filtrable con todo lo guardado.
@@ -111,6 +112,11 @@ ${B('SEGUIMIENTO')}   ${G('(comando seguir)')}
   --avisar-bajo <n>    Avisar si algo queda por debajo de este precio
   --avisar-con <cmd>   Comando a ejecutar en cada aviso (recibe $AGODA_NOMBRE, $AGODA_PRECIO, $AGODA_URL...)
 
+${B('COMPARAR NOCHES')}   ${G('(comando comparar)')}
+  --contra <n>         Contra cuantas noches atras (1)
+  --hora <h>           Cruzar a esa hora en vez de la ultima muestra
+  --tolerancia <min>   Cuanto puede desviarse la hora al cruzar (90)
+
 ${B('AUTOMATICO')}   ${G('(comando programar: corre aunque cierres la terminal)')}
   --cada <min>         Cada cuanto muestrear; tiene que dividir a 60 (60)
   --desde-hora <h>     Desde que hora arranca (12)
@@ -133,6 +139,9 @@ ${B('EJEMPLOS')}
 
   ${G('# cuanto bajo cada uno desde que empece a mirar')}
   agoda bajadas --limite 20
+
+  ${G('# esta noche a las 19 contra anoche a las 19')}
+  agoda comparar --hora 19
 
   ${G('# reporte HTML para abrir en el navegador')}
   agoda reporte --html reportes/hoy.html

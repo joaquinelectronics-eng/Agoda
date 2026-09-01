@@ -99,6 +99,32 @@ export function tablaBajadas(filas, { moneda = '' } = {}) {
   ]) + (moneda ? `\n  ${c('gray', `precios por noche en ${moneda}`)}` : '');
 }
 
+/** Tabla de hoy contra la noche anterior a la misma hora. */
+export function tablaComparacion(filas, { moneda = '' } = {}) {
+  const datos = filas.map((f, i) => ({
+    n: i + 1,
+    hoy: fmtPrecio(f.hoy),
+    ayer: fmtPrecio(f.ayer),
+    dif: fmtPrecio(f.delta),
+    pct: fmtPct(f.pct),
+    nota: f.nota ? f.nota.toFixed(1) : '-',
+    tipo: tipoCorto(f.tipo),
+    zona: f.zona ?? '-',
+    nombre: enlace(recortar(f.nombre, 40), f.url),
+  }));
+  return tabla(datos, [
+    { key: 'n', title: '#', align: 'right' },
+    { key: 'hoy', title: 'hoy', align: 'right', color: 'green' },
+    { key: 'ayer', title: 'la noche anterior', align: 'right', color: 'gray' },
+    { key: 'dif', title: 'dif', align: 'right' },
+    { key: 'pct', title: '%', align: 'right', color: (f) => (String(f.pct).startsWith('-') ? 'green' : 'red') },
+    { key: 'nota', title: 'nota', align: 'right', color: 'cyan' },
+    { key: 'tipo', title: 'tipo', width: 12, color: 'gray' },
+    { key: 'zona', title: 'zona', width: 16 },
+    { key: 'nombre', title: 'alojamiento', width: 40 },
+  ]) + (moneda ? `\n  ${c('gray', `precios por noche en ${moneda}`)}` : '');
+}
+
 export function tablaHistorial(puntos, { moneda = '' } = {}) {
   const datos = puntos.map((p, i) => {
     const prev = puntos[i - 1]?.por_noche;
@@ -197,8 +223,9 @@ export function urlConFechas(url, busqueda) {
  * veces mas y en una pagina de cientos de fichas eso son decenas de megas.
  * Si `fotos` viene, la miniatura va incrustada como data: URI.
  */
-function filaParaWeb(f, { historiales, fotos, busqueda, anchoFoto }) {
+function filaParaWeb(f, { historiales, fotos, busqueda, anchoFoto, contraAyer }) {
   const id = f.property_id ?? f.propertyId;
+  const ayer = contraAyer ? contraAyer.get(id) : null;
   const mini = miniatura(f.imagen, anchoFoto);
   const final = f._precio ?? f.por_noche ?? f.porNoche ?? null;
   const base = f.por_noche_sin_imp ?? f.porNocheSinImp ?? null;
@@ -222,6 +249,8 @@ function filaParaWeb(f, { historiales, fotos, busqueda, anchoFoto }) {
     canc: /free/i.test(f.cancelacion ?? '') ? 1 : 0,
     libres: f.habitaciones_libres ?? f.habitacionesLibres ?? null,
     hist: (historiales[id] ?? []).map((p) => p.por_noche),
+    ayer: ayer ? ayer.ayer : null,             // precio de la noche anterior a esta misma hora
+    ayerPct: ayer ? ayer.pct : null,
   };
 }
 
@@ -362,6 +391,15 @@ const ESTILOS = `
   .etiquetas{display:flex; flex-wrap:wrap; gap:5px}
   .etiqueta{font-size:10.5px; color:var(--muted); border:1px solid var(--line2); border-radius:999px; padding:1px 8px}
   .etiqueta.buena{color:var(--good); border-color:var(--good)}
+  .vsAyer{
+    font-size:10.5px; font-weight:600; border-radius:999px; padding:1px 8px; white-space:nowrap;
+    font-family:'IBM Plex Mono', ui-monospace, monospace;
+  }
+  .vsAyer.mejor{color:var(--good); border:1px solid var(--good)}
+  .vsAyer.peor{color:var(--bad); border:1px solid var(--bad)}
+  .vsAyer.igual{color:var(--muted); border:1px solid var(--line2)}
+  .tesis.ayer{background:var(--surface2); border-color:var(--line2)}
+  .tesis.ayer b{color:var(--ink)}
   .pie{margin-top:auto; padding-top:9px; display:flex; align-items:center; justify-content:space-between; gap:8px}
   .abrir{
     font-size:12.5px; font-weight:600; color:var(--accent); border:1px solid var(--line2);
@@ -376,6 +414,7 @@ const ESTILOS = `
     transition:color .14s, border-color .14s;
   }
   .copiar:hover{color:var(--accent); border-color:var(--accent)}
+  .copiar{white-space:nowrap}
   .copiar.copiado{color:var(--good); border-color:var(--good)}
   td .copiar{padding:1px 6px; font-size:11px; margin-left:7px; vertical-align:1px}
 
@@ -403,6 +442,14 @@ const ESTILOS = `
   a{color:var(--accent); text-decoration:none}
   .marco a:hover{text-decoration:underline; text-underline-offset:2px}
 
+  .tesis.nota{background:var(--surface2); border-color:var(--line2)}
+  .tesis.nota code{font-family:'IBM Plex Mono', ui-monospace, monospace; font-size:12.5px}
+  .aviso{
+    position:fixed; left:50%; transform:translateX(-50%); bottom:22px; z-index:60;
+    background:var(--ink); color:var(--ground); border-radius:9px; padding:10px 16px;
+    font-size:13px; font-weight:500; box-shadow:var(--sombra-alta); max-width:90vw;
+  }
+  .aviso.bien{background:var(--good); color:#fff}
   .nada{padding:52px 20px; text-align:center; color:var(--muted)}
   footer{color:var(--muted); font-size:12px; padding:22px 2px 44px; line-height:1.75; max-width:80ch}
 
@@ -417,8 +464,10 @@ const ESTILOS = `
 export function reporteHtml(filas, {
   busqueda, historiales = {}, generado = new Date(), preseleccion = {}, muestras = null,
   fragmento = false, nombre = null, fotos = null, anchoFoto = 400,
+  contraAyer = null, comparacion = null,
 } = {}) {
-  const datos = filas.map((f) => filaParaWeb(f, { historiales, fotos, busqueda, anchoFoto }));
+  const datos = filas.map((f) => filaParaWeb(f, { historiales, fotos, busqueda, anchoFoto, contraAyer }));
+  const conAyer = datos.filter((d) => d.ayerPct != null);
   const noches = Number(busqueda?.los ?? 1);
   const moneda = busqueda?.moneda ?? '';
   const ciudad = busqueda?.ciudad ?? 'Agoda';
@@ -449,6 +498,7 @@ export function reporteHtml(filas, {
     reviews: preseleccion.minReviews ?? null,
     canc: preseleccion.cancelacionGratis ?? false,
     baja: false,
+    mejorQueAyer: false,
     texto: '',
     conImpuestos: true,
     vista: 'fichas',
@@ -468,6 +518,12 @@ export function reporteHtml(filas, {
   <div class="tesis">Agoda muestra en sus tarjetas el precio <b>sin impuestos</b>. Acá el orden es por
   <b>precio final</b>${recargoMax > 1 ? `, y el recargo llega al <b>${recargoMax.toFixed(0)}%</b> en esta búsqueda` : ''}:
   el que parece más barato muchas veces no lo es.</div>
+  ${conAyer.length ? `<div class="tesis ayer">Comparado con <b>la noche del ${escHtml(comparacion?.hermana?.check_in ?? '')}</b> a la misma hora
+  (~${escHtml(comparacion?.referencia?.etiqueta ?? '')}): <b>${conAyer.filter((d) => d.ayerPct < -0.5).length}</b> están más baratos que esa noche,
+  ${conAyer.filter((d) => d.ayerPct > 0.5).length} más caros, sobre ${conAyer.length} comparables.</div>` : ''}
+  <div class="tesis nota" id="notaEnmarcado" hidden>Esta página está embebida, y el navegador puede
+  no dejarla abrir pestañas nuevas. Si al tocar una ficha no pasa nada, usá <b>Copiar link</b> y pegalo
+  en una pestaña. En el archivo HTML que genera <code>agoda reporte</code> los links abren normal.</div>
 </header>
 
 <div class="consola">
@@ -499,7 +555,8 @@ export function reporteHtml(filas, {
     <label class="campo">ordenar por<select id="forden">
       <option value="final">precio final</option>
       <option value="impPct">recargo oculto</option>
-      <option value="bajadaPct">cuánto bajó</option>
+      <option value="bajadaPct">cuánto bajó hoy</option>
+      <option value="ayerPct">vs la noche anterior</option>
       <option value="nota">nota</option>
       <option value="reviews">cantidad de reviews</option>
       <option value="zona">zona</option>
@@ -507,7 +564,8 @@ export function reporteHtml(filas, {
     </select></label>
     <button type="button" class="chip" id="fsentido" title="Invertir el orden">↑ menor primero</button>
     <label class="marca"><input type="checkbox" id="fcanc"> cancelación gratis</label>
-    <label class="marca"><input type="checkbox" id="fbaja"> solo los que bajaron</label>
+    <label class="marca"><input type="checkbox" id="fbaja"> solo los que bajaron hoy</label>
+    ${conAyer.length ? '<label class="marca"><input type="checkbox" id="fayer"> solo más baratos que anoche</label>' : ''}
   </div>
 </div>
 
@@ -521,6 +579,7 @@ export function reporteHtml(filas, {
   <th class="der" data-k="impPct">recargo oculto</th>
   ${noches > 1 ? '<th class="der" data-k="total">total ' + noches + 'n</th>' : ''}
   <th class="der" data-k="bajadaPct">evolución</th>
+  ${conAyer.length ? '<th class="der" data-k="ayerPct">vs anoche</th>' : ''}
   <th class="der" data-k="nota">nota</th>
   <th data-k="tipo">tipo</th><th data-k="zona">zona</th><th data-k="nombre">alojamiento</th>
 </tr></thead><tbody id="cuerpoTabla"></tbody></table></div>
@@ -541,11 +600,15 @@ export function reporteHtml(filas, {
 var DATOS = ${JSON.stringify(datos)};
 var MONEDA = ${JSON.stringify(moneda)};
 var VER_TOTAL = ${noches > 1};
+var VER_AYER = ${conAyer.length > 0};
 var RECARGO_MAX = ${recargoMax.toFixed(2)};
 var PRESET = ${JSON.stringify({ tipos: estadoInicial.tipos, zonas: estadoInicial.zonas })};
 var CLAVE = 'agoda-filtros-' + ${JSON.stringify(String(busqueda?.id ?? 'x') + '-' + fecha)};
 
-var VACIO = { tipos:[], zonas:[], max:null, nota:null, reviews:null, canc:false, baja:false, texto:'', conImpuestos:true, vista:'fichas', orden:'final', asc:true };
+// true si la pagina vive adentro de un iframe: ahi abrir pestanas puede estar prohibido.
+var ENMARCADO = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
+
+var VACIO = { tipos:[], zonas:[], max:null, nota:null, reviews:null, canc:false, baja:false, mejorQueAyer:false, texto:'', conImpuestos:true, vista:'fichas', orden:'final', asc:true };
 var estado = Object.assign({}, VACIO, ${JSON.stringify(estadoInicial)});
 
 try {
@@ -585,6 +648,7 @@ function filtrados() {
     if (estado.reviews != null && d.reviews < estado.reviews) return false;
     if (estado.canc && d.canc !== 1) return false;
     if (estado.baja && !(d.bajadaPct != null && d.bajadaPct < -0.5)) return false;
+    if (estado.mejorQueAyer && !(d.ayerPct != null && d.ayerPct < -0.5)) return false;
     if (estado.texto && norm(d.nombre).indexOf(norm(estado.texto)) < 0) return false;
     return true;
   });
@@ -620,6 +684,13 @@ function ficha(d) {
     ? '<span class="selloRecargo" title="Agoda publica ' + fmt(d.base) + ', sin impuestos">+' + d.impPct.toFixed(0) + '%</span>' : '';
   var baja = (d.bajadaPct != null && d.bajadaPct < -0.5)
     ? '<span class="selloBaja">bajó ' + d.bajadaPct.toFixed(0) + '%</span>' : '';
+  var vsAyer = '';
+  if (d.ayerPct != null) {
+    var mejor = d.ayerPct < -0.5, peor = d.ayerPct > 0.5;
+    vsAyer = '<span class="vsAyer ' + (mejor ? 'mejor' : peor ? 'peor' : 'igual') + '" ' +
+      'title="La noche anterior, a esta misma hora, costaba ' + fmt(d.ayer) + '">' +
+      (mejor ? '▼ ' : peor ? '▲ ' : '= ') + (d.ayerPct > 0 ? '+' : '') + d.ayerPct.toFixed(0) + '% vs anoche</span>';
+  }
   var sinImp = (estado.conImpuestos && d.base != null && d.base !== d.final)
     ? '<span class="sinImp">Agoda publica ' + fmt(d.base) + '</span>' : '';
 
@@ -640,11 +711,11 @@ function ficha(d) {
         (d.zona ? '<span>·</span><span>' + esc(d.zona) + '</span>' : '') +
       '</div>' +
       (sinImp ? '<div class="subdatos">' + sinImp + (VER_TOTAL ? '<span>· total ' + fmt(d.total) + '</span>' : '') + '</div>' : '') +
-      '<div class="etiquetas">' + etiquetasDe(d) + '</div>' +
+      '<div class="etiquetas">' + vsAyer + etiquetasDe(d) + '</div>' +
       '<div class="pie">' + curva(d.hist, 72) +
         '<span class="acciones">' +
           '<a class="abrir" ' + ancla + '>Ver en Agoda ↗</a>' +
-          '<button type="button" class="copiar" data-url="' + esc(d.url) + '" title="Copiar el link" aria-label="Copiar el link">⧉</button>' +
+          '<button type="button" class="copiar" data-url="' + esc(d.url) + '" title="Copiar el link de Agoda">' + (ENMARCADO ? 'Copiar link' : '⧉') + '</button>' +
         '</span>' +
       '</div>' +
     '</div></article>';
@@ -671,6 +742,9 @@ function fila(d, i) {
     (VER_TOTAL ? '<td class="der n">' + fmt(d.total) + '</td>' : '') +
     '<td class="der"><span class="evol">' + curva(d.hist) +
       '<span class="n ' + clase + '">' + (b == null ? '' : (b > 0 ? '+' : '') + b.toFixed(0) + '%') + '</span></span></td>' +
+    (VER_AYER ? '<td class="der">' + (d.ayerPct == null ? '<span style="color:var(--muted)">—</span>' :
+      '<span class="n ' + (d.ayerPct < -0.5 ? 'baja' : d.ayerPct > 0.5 ? 'sube' : 'plano') + '">' +
+      (d.ayerPct > 0 ? '+' : '') + d.ayerPct.toFixed(0) + '%</span><div class="sombraTxt">' + fmt(d.ayer) + '</div>') + '</td>' : '') +
     '<td class="der"><span class="n" style="font-weight:600">' + (d.nota == null ? '–' : d.nota.toFixed(1)) + '</span>' +
       (d.reviews ? '<div class="sombraTxt">' + d.reviews + '</div>' : '') + '</td>' +
     '<td style="color:var(--muted)">' + esc(d.tipo) + '</td><td>' + esc(d.zona) + '</td>' +
@@ -715,6 +789,7 @@ function sincronizar() {
   $('ftexto').value = estado.texto;
   $('fcanc').checked = estado.canc;
   $('fbaja').checked = estado.baja;
+  if ($('fayer')) $('fayer').checked = estado.mejorQueAyer;
   $('forden').value = estado.orden;
   $('fsentido').textContent = estado.asc ? '↑ menor primero' : '↓ mayor primero';
   $('mFinal').setAttribute('aria-pressed', estado.conImpuestos ? 'true' : 'false');
@@ -738,6 +813,7 @@ $('frev').addEventListener('input', function () { estado.reviews = numeroDe(this
 $('ftexto').addEventListener('input', function () { estado.texto = this.value; pintar(); });
 $('fcanc').addEventListener('change', function () { estado.canc = this.checked; pintar(); });
 $('fbaja').addEventListener('change', function () { estado.baja = this.checked; pintar(); });
+if ($('fayer')) $('fayer').addEventListener('change', function () { estado.mejorQueAyer = this.checked; pintar(); });
 $('forden').addEventListener('change', function () { estado.orden = this.value; marcarColumna(); pintar(); });
 $('fsentido').addEventListener('click', function () { estado.asc = !estado.asc; sincronizar(); marcarColumna(); pintar(); });
 $('mFinal').addEventListener('click', function () { estado.conImpuestos = true; sincronizar(); pintar(); });
@@ -780,17 +856,27 @@ document.querySelectorAll('th[data-k]').forEach(function (th) {
     var k = th.dataset.k;
     if (k === '_i') return;
     if (estado.orden === k) estado.asc = !estado.asc;
-    else { estado.orden = k; estado.asc = ['nota', 'bajadaPct', 'impPct'].indexOf(k) < 0; }
+    else { estado.orden = k; estado.asc = ['nota', 'bajadaPct', 'impPct', 'ayerPct'].indexOf(k) < 0; }
     sincronizar(); marcarColumna(); pintar();
   });
 });
 
 /*
- * Los links son anclas nativas y nadie intercepta el click: dentro de un iframe
- * con sandbox, <a target="_blank"> abre y window.open desde script no. Encima
- * window.open(url, '_blank', 'noopener') devuelve null aunque haya abierto, asi
- * que no sirve ni para saber si funciono.
- * El boton de copiar queda como salida si el navegador igual bloquea la pestana.
+ * Abrir el link depende de donde este corriendo la pagina.
+ *
+ * Como archivo suelto: el ancla nativa abre y nadie tiene que meterse.
+ *
+ * Adentro de un iframe con sandbox (una pagina publicada, por ejemplo) depende de
+ * los permisos que le hayan dado, y medido con clicks de verdad da asi:
+ *     permisos                <a target=_blank>   open(...,'noopener')   open(...)
+ *     allow-scripts           bloqueado           bloqueado              bloqueado
+ *     + allow-popups          abre                bloqueado              abre
+ * O sea que con noopener en el tercer argumento nunca abre, y ademas devuelve
+ * null aunque haya abierto, asi que no sirve ni para detectar el bloqueo.
+ * Sin allow-popups no abre nada, y lo unico que queda es copiar la direccion.
+ *
+ * Entonces: si no estamos enmarcados no tocamos nada. Si lo estamos, probamos
+ * window.open sin noopener y, si no sale, copiamos al portapapeles y avisamos.
  */
 function copiarAlPortapapeles(texto) {
   if (navigator.clipboard && window.isSecureContext) {
@@ -811,20 +897,54 @@ function viejoCopiar(texto) {
   return listo;
 }
 
+function avisar(texto, ok) {
+  var vieja = document.getElementById('aviso');
+  if (vieja) vieja.remove();
+  var caja = document.createElement('div');
+  caja.id = 'aviso';
+  caja.className = 'aviso' + (ok ? ' bien' : '');
+  caja.setAttribute('role', 'status');
+  caja.textContent = texto;
+  document.body.appendChild(caja);
+  setTimeout(function () { caja.remove(); }, 3200);
+}
+
+function copiarYAvisar(url, boton) {
+  return copiarAlPortapapeles(url).then(function (listo) {
+    if (boton) {
+      var antes = boton.textContent;
+      boton.textContent = listo ? '✓ copiado' : '✕';
+      boton.classList.toggle('copiado', listo);
+      setTimeout(function () { boton.textContent = antes; boton.classList.remove('copiado'); }, 1600);
+    }
+    if (listo) avisar('Link copiado. Pegalo en una pestaña nueva.', true);
+    else window.prompt('Copiá el link a mano:', url);
+    return listo;
+  });
+}
+
 document.addEventListener('click', function (ev) {
   var boton = ev.target.closest ? ev.target.closest('.copiar') : null;
-  if (!boton) return;
+  if (boton) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    return copiarYAvisar(boton.dataset.url, boton);
+  }
+
+  if (!ENMARCADO) return;   // archivo suelto: el ancla nativa se encarga sola
+  var a = ev.target.closest ? ev.target.closest('a[target="_blank"]') : null;
+  if (!a || ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
   ev.preventDefault();
-  ev.stopPropagation();
-  var url = boton.dataset.url;
-  copiarAlPortapapeles(url).then(function (listo) {
-    var antes = boton.textContent;
-    boton.textContent = listo ? '✓' : '✕';
-    boton.classList.toggle('copiado', listo);
-    setTimeout(function () { boton.textContent = antes; boton.classList.remove('copiado'); }, 1400);
-    if (!listo) window.prompt('Copiá el link a mano:', url);
-  });
+  var url = a.getAttribute('href');
+  var abierta = null;
+  try { abierta = window.open(url, '_blank'); } catch (e) { abierta = null; }
+  if (!abierta) copiarYAvisar(url, null);
 });
+
+if (ENMARCADO) {
+  var nota = document.getElementById('notaEnmarcado');
+  if (nota) nota.hidden = false;
+}
 
 sincronizar();
 marcarColumna();

@@ -654,7 +654,10 @@ export async function cmdHorarios(db, op, pos) {
   }
 
   const minSeries = num(op['min-muestras'], 5);
-  const r = analizarHorarios(db, busqueda, { noches: num(op.noches_atras ?? op.dias, 30), propiedades, minSeriesPorHora: minSeries });
+  const criterio = normalizar(op.criterio ?? 'mediana');
+  const r = analizarHorarios(db, busqueda, {
+    noches: num(op.noches_atras ?? op.dias, 30), propiedades, minSeriesPorHora: minSeries, criterio,
+  });
 
   if (!r.horas.length) {
     throw new Error('No hay suficientes muestras guardadas todavia. Dejalo corriendo con "agoda programar".');
@@ -664,24 +667,43 @@ export async function cmdHorarios(db, op, pos) {
   encabezado(busqueda);
   log(c('gray', `${r.nochesAnalizadas} noches · ${r.series} series (alojamiento en una noche) · ${r.observaciones} observaciones${propiedades ? ` · solo ${propiedades.size} alojamientos que pasan tus filtros` : ''}`));
   log('');
-  log(OUT.tablaHorarios(r.horas, { minSeries, mejor: r.mejor }));
+  log(OUT.tablaHorarios(r.horas, { minSeries, mejor: r.mejor, grafica: criterio === 'promedio' ? 'promedio' : 'mediana' }));
   log('');
 
+  const hh = (h) => `${String(h.hora).padStart(2, '0')}:00`;
+  const valorDe = { mediana: (h) => h.indicePct, promedio: (h) => h.promedioPct, minimos: (h) => h.indicePct }[criterio];
+
   if (r.mejor) {
-    const hh = `${String(r.mejor.hora).padStart(2, '0')}:00`;
-    if (r.mejor.indicePct < -1) {
-      log(`  ${c('bold', c('green', `La mejor hora suele ser a las ${hh}`))}: ${fmtPct(r.mejor.indicePct)} respecto de lo que vale el resto del dia.`);
+    const v = valorDe(r.mejor);
+    if (criterio === 'minimos') {
+      log(`  ${c('bold', c('green', `A las ${hh(r.mejor)} es cuando mas seguido cae el precio mas bajo del dia`))} (${r.mejor.vecesMinimo} veces).`);
+    } else if (v < -1) {
+      log(`  ${c('bold', c('green', `La mejor hora suele ser a las ${hh(r.mejor)}`))}: ${fmtPct(v)} respecto de lo que vale el resto del dia.`);
     } else {
-      log(`  ${c('bold', `No se ve una hora claramente mejor`)}: la mas baja es ${hh} y apenas ${fmtPct(r.mejor.indicePct)}.`);
+      log(`  ${c('bold', 'No se ve una hora claramente mejor')}: la mas baja es ${hh(r.mejor)} y apenas ${fmtPct(v)}.`);
     }
     if (r.peor && r.peor.indicePct > 1) {
-      log(c('gray', `  La peor suele ser a las ${String(r.peor.hora).padStart(2, '0')}:00 (${fmtPct(r.peor.indicePct)}).`));
+      log(c('gray', `  La peor suele ser a las ${hh(r.peor)} (${fmtPct(r.peor.indicePct)}).`));
     }
+  }
+
+  // Si los criterios no coinciden, decirlo: significa que unos pocos se desploman
+  // a una hora mientras el resto baja parejo a otra.
+  if (!r.coinciden) {
+    const c1 = r.porCriterio;
+    log(c('yellow', '  ! Los criterios no coinciden:'));
+    if (c1.mediana) log(c('gray', `      tipico   → ${hh(c1.mediana)} (${fmtPct(c1.mediana.indicePct)}): la hora mas barata para un alojamiento cualquiera`));
+    if (c1.promedio) log(c('gray', `      promedio → ${hh(c1.promedio)} (${fmtPct(c1.promedio.promedioPct)}): la hora con mayor descuento promedio, la mueven las bajadas fuertes`));
+    if (c1.minimos) log(c('gray', `      minimos  → ${hh(c1.minimos)}: donde mas seguido cae el precio mas bajo (${c1.minimos.vecesMinimo} veces)`));
+    log(c('gray', '      Elegí con --criterio mediana|promedio|minimos.'));
+  } else if (r.mejor) {
+    log(c('gray', '  Los tres criterios (tipico, promedio y minimos) apuntan a la misma hora.'));
   }
 
   const color = { nada: 'red', poco: 'yellow', medio: 'yellow', bien: 'green' }[r.aviso.nivel];
   log(c(color, `  ${r.aviso.nivel === 'bien' ? '' : '! '}${r.aviso.texto}`));
-  log(c('gray', '  "vs el dia" compara cada alojamiento consigo mismo esa noche, asi que no lo desvian los caros.'));
+  log(c('gray', '  Cada alojamiento se compara consigo mismo esa noche, asi que no lo desvian los caros.'));
+  log(c('gray', '  "tipico" es la mediana; "promedio" es el promedio geometrico, que es el que corresponde para ratios.'));
 }
 
 // --- salud de la automatizacion ----------------------------------------------

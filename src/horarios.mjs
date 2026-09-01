@@ -10,6 +10,21 @@
 import * as DB from './db.mjs';
 import { minutosDelDia } from './comparar.mjs';
 
+/**
+ * Promedio geometrico de una lista de ratios, en porcentaje.
+ *
+ * El promedio comun no sirve para ratios: un precio que se duplica da 2.0 y uno
+ * que se parte al medio da 0.5; promediados dan 1.25, o sea "+25%", cuando en
+ * realidad se cancelan. Promediando los logaritmos, 2.0 y 0.5 dan 0%, que es lo
+ * correcto. Este es el "promedio de descuento" bien hecho.
+ */
+export function promedioGeometricoPct(ratios) {
+  const validos = ratios.filter((r) => r > 0);
+  if (!validos.length) return null;
+  const suma = validos.reduce((acc, r) => acc + Math.log(r), 0);
+  return (Math.exp(suma / validos.length) - 1) * 100;
+}
+
 export function mediana(xs) {
   if (!xs.length) return null;
   const o = [...xs].sort((a, b) => a - b);
@@ -37,11 +52,22 @@ export function nochesDelPerfil(db, busqueda, { noches = 30 } = {}) {
  * Devuelve { horas, noches, observaciones, propiedades, mejor, aviso } donde cada
  * hora trae:
  *   indicePct     mediana del precio a esa hora respecto del tipico del dia, en %
+ *   promedioPct   lo mismo pero con promedio geometrico: siente mas las bajadas grandes
  *   vecesMinimo   en cuantas series (noche + alojamiento) el minimo cayo a esa hora
  *   series        cuantas series pasaron por esa hora
  *   noches        cuantas noches distintas la cubren
+ *
+ * `criterio` decide cual de las tres columnas define la "mejor hora":
+ *   mediana   la hora mas barata para un alojamiento cualquiera (robusta)
+ *   promedio  la hora con mayor descuento promedio (siente las bajadas fuertes)
+ *   minimos   la hora donde mas seguido cae el minimo del dia
  */
-export function analizarHorarios(db, busqueda, { noches = 30, propiedades = null, minSeriesPorHora = 5 } = {}) {
+export function analizarHorarios(db, busqueda, {
+  noches = 30, propiedades = null, minSeriesPorHora = 5, criterio = 'mediana',
+} = {}) {
+  if (!['mediana', 'promedio', 'minimos'].includes(criterio)) {
+    throw new Error(`Criterio desconocido: "${criterio}". Usa mediana, promedio o minimos.`);
+  }
   const listaNoches = nochesDelPerfil(db, busqueda, { noches });
 
   const porHora = new Map();   // hora -> { ratios:[], vecesMinimo, noches:Set }
@@ -92,7 +118,8 @@ export function analizarHorarios(db, busqueda, { noches = 30, propiedades = null
   const horas = [...porHora.entries()]
     .map(([hora, d]) => ({
       hora,
-      indicePct: (mediana(d.ratios) - 1) * 100,
+      indicePct: (mediana(d.ratios) - 1) * 100,   // el tipico: aguanta los outliers
+      promedioPct: promedioGeometricoPct(d.ratios), // el promedio: siente las bajadas grandes
       vecesMinimo: d.vecesMinimo,
       series: d.ratios.length,
       noches: d.noches.size,
@@ -101,12 +128,21 @@ export function analizarHorarios(db, busqueda, { noches = 30, propiedades = null
 
   // Solo opinamos sobre horas con suficiente respaldo.
   const solidas = horas.filter((h) => h.series >= minSeriesPorHora);
-  const mejor = solidas.length
-    ? solidas.reduce((a, b) => (b.indicePct < a.indicePct ? b : a))
-    : null;
+  const menorPor = (clave) => (solidas.length ? solidas.reduce((a, b) => (b[clave] < a[clave] ? b : a)) : null);
+
+  const porCriterio = {
+    mediana: menorPor('indicePct'),
+    promedio: menorPor('promedioPct'),
+    minimos: solidas.length ? solidas.reduce((a, b) => (b.vecesMinimo > a.vecesMinimo ? b : a)) : null,
+  };
+  const mejor = porCriterio[criterio] ?? null;
   const peor = solidas.length
     ? solidas.reduce((a, b) => (b.indicePct > a.indicePct ? b : a))
     : null;
+
+  // Si los tres criterios no apuntan a la misma hora, hay que decirlo.
+  const horasElegidas = [...new Set(Object.values(porCriterio).filter(Boolean).map((h) => h.hora))];
+  const coinciden = horasElegidas.length <= 1;
 
   return {
     horas,
@@ -116,6 +152,9 @@ export function analizarHorarios(db, busqueda, { noches = 30, propiedades = null
     propiedades: propsVistas.size,
     mejor,
     peor,
+    criterio,
+    porCriterio,
+    coinciden,
     aviso: avisoDeConfianza(listaNoches.length, horas),
   };
 }

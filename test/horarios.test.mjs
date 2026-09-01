@@ -105,3 +105,63 @@ test('el aviso de confianza escala con la cantidad de noches', () => {
   assert.equal(avisoDeConfianza(20, muchas).nivel, 'bien');
   assert.equal(avisoDeConfianza(20, [{ series: 20 }]).nivel, 'poco', 'pocas horas cubiertas tambien baja la confianza');
 });
+
+// --- promedio de descuento --------------------------------------------------
+
+const { promedioGeometricoPct } = await import('../src/horarios.mjs');
+
+test('el promedio de ratios tiene que ser geometrico, no aritmetico', () => {
+  // Duplicarse y partirse al medio se cancelan: el promedio correcto es 0%.
+  // El promedio comun daria (2 + 0.5) / 2 = 1.25, o sea "+25%", que es falso.
+  assert.equal(Math.round(promedioGeometricoPct([2, 0.5])), 0);
+  assert.ok(Math.abs(promedioGeometricoPct([0.9, 0.9, 0.9]) + 10) < 0.001, 'tres veces -10% da -10%');
+  assert.equal(promedioGeometricoPct([]), null);
+  assert.equal(promedioGeometricoPct([0, -1]), null, 'ignora ratios imposibles');
+});
+
+test('mediana y promedio pueden discrepar, y el analisis lo avisa', () => {
+  const db = dbTemporal();
+  // A las 20 casi nada se mueve, pero un alojamiento se desploma.
+  // A las 21 todos bajan un poco. La mediana prefiere las 21; el promedio, las 20.
+  for (let d = 1; d <= 6; d++) {
+    const fecha = `2026-09-0${d}`;
+    const b = DB.guardarBusqueda(db, { ...BASE, checkIn: fecha });
+    const base = [];
+    const veinte = [];
+    const veintiuna = [];
+    for (let i = 1; i <= 6; i++) {
+      base.push(prop(i, 100));
+      veinte.push(prop(i, i === 1 ? 20 : 100));   // uno solo se desploma
+      veintiuna.push(prop(i, 92));                // todos bajan poco
+    }
+    muestraA(db, b.id, cuando(fecha, 12), base);
+    muestraA(db, b.id, cuando(fecha, 20), veinte);
+    muestraA(db, b.id, cuando(fecha, 21), veintiuna);
+  }
+  const ultima = DB.buscarBusqueda(db, { clave: '9294|2026-09-06|1|2|0|1|ARS' });
+
+  const porMediana = analizarHorarios(db, ultima, { criterio: 'mediana' });
+  const porPromedio = analizarHorarios(db, ultima, { criterio: 'promedio' });
+  assert.notEqual(porMediana.mejor.hora, porPromedio.mejor.hora, 'los criterios discrepan');
+  assert.equal(porPromedio.mejor.hora, 20, 'el promedio ve el desplome');
+  assert.equal(porMediana.coinciden, false, 'y el analisis lo marca');
+  db.close();
+});
+
+test('criterio minimos elige donde mas seguido cae el precio mas bajo', () => {
+  const db = dbTemporal();
+  for (let d = 1; d <= 6; d++) {
+    const fecha = `2026-09-0${d}`;
+    const b = DB.guardarBusqueda(db, { ...BASE, checkIn: fecha });
+    const a = [], t = [];
+    for (let i = 1; i <= 6; i++) { a.push(prop(i, 100)); t.push(prop(i, 80)); }
+    muestraA(db, b.id, cuando(fecha, 12), a);
+    muestraA(db, b.id, cuando(fecha, 22), t);
+  }
+  const ultima = DB.buscarBusqueda(db, { clave: '9294|2026-09-06|1|2|0|1|ARS' });
+  const r = analizarHorarios(db, ultima, { criterio: 'minimos' });
+  assert.equal(r.mejor.hora, 22);
+  assert.equal(r.coinciden, true, 'aca los tres criterios coinciden');
+  assert.throws(() => analizarHorarios(db, ultima, { criterio: 'promedio-raro' }), /Criterio desconocido/);
+  db.close();
+});

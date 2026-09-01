@@ -135,6 +135,10 @@ ${B('AUTOMATICO')}   ${G('(comando programar: corre aunque cierres la terminal)'
 ${B('HORARIOS')}   ${G('(comando horarios)')}
   --dias <n>           Cuantas noches para atras analizar (30)
   --min-muestras <n>   Muestras minimas para opinar de una hora (5)
+  --criterio <c>       Que define la mejor hora:
+                       mediana (por defecto) la hora mas barata para uno cualquiera
+                       promedio             mayor descuento promedio (geometrico)
+                       minimos              donde mas seguido cae el minimo del dia
   ${G('Acepta los filtros: podes preguntar solo por deptos, o solo por una zona.')}
 
 ${B('EJEMPLOS')}

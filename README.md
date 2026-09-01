@@ -274,24 +274,47 @@ agoda horarios --tipo depto,casa
 ```
 
 ```
-  hora   vs el dia  mas barato       │       mas caro      fue el min  muestras  noches
-  ─────  ─────────  ─────────────────────────────────────  ──────────  ────────  ──────
-  12:00      +3.1%                   │███                          12       340       9
-  17:00      -1.4%                ██ │                             41       338       9
-  21:00      -7.8%        ██████████ │                            186       341       9  ← mas barata
+  hora   tipico  promedio  mas barato       │       mas caro      fue el min  muestras  noches
+  ─────  ──────  ────────  ─────────────────────────────────────  ──────────  ────────  ──────
+  12:00   +8.2%     +8.2%                    │██████████████████                   400      10
+  20:00   -1.3%     -1.3%                 ███│                                     400      10
+  21:00   -2.6%     -9.4%              ██████│                            64       400      10
+  23:00   -4.9%     -4.8%         ███████████│                           241       400      10  ← mejor
 
-  La mejor hora suele ser a las 21:00: -8% respecto de lo que vale el resto del dia.
+  La mejor hora suele ser a las 23:00: -5% respecto de lo que vale el resto del dia.
+  ! Los criterios no coinciden:
+      tipico   → 23:00 (-5%): la hora mas barata para un alojamiento cualquiera
+      promedio → 21:00 (-9%): la hora con mayor descuento promedio, la mueven las bajadas fuertes
+      minimos  → 23:00: donde mas seguido cae el precio mas bajo (241 veces)
 ```
 
 **Cómo se calcula, porque importa.** Promediar precios por hora daría cualquier
 cosa: un depto caro muestreado de noche ensuciaría esa hora. Acá cada alojamiento
 se compara **consigo mismo**: para cada noche se toma su precio típico (la mediana
-de esa noche) y cada observación se mide como porcentaje de eso. Así "las 21:00
-están -8%" significa que a esa hora un alojamiento cualquiera suele estar un 8%
-por debajo de lo que vale el resto del día, sin que lo desvíen los caros.
+de esa noche) y cada observación se mide como porcentaje de eso. Así "-8%"
+significa que a esa hora un alojamiento cualquiera suele estar un 8% por debajo de
+lo que vale el resto del día, sin que lo desvíen los caros.
 
-La columna *fue el min* cuenta en cuántas series (un alojamiento en una noche) el
-precio más bajo cayó a esa hora.
+### Típico, promedio y mínimos
+
+Son tres preguntas distintas y pueden dar horas distintas:
+
+| columna | qué contesta |
+| --- | --- |
+| `tipico` | mediana: la hora más barata **para un alojamiento cualquiera** |
+| `promedio` | promedio geométrico: la hora con **mayor descuento promedio** |
+| `fue el min` | en cuántas series el precio más bajo del día cayó a esa hora |
+
+En el ejemplo de arriba discrepan porque unos pocos deptos rematan fuerte a las
+21:00 mientras el resto sigue bajando parejo hasta las 23:00. Si vas a reservar
+uno cualquiera, te sirve `tipico`; si estás cazando el remate, `promedio`. Cuando
+no coinciden, el comando **te lo dice** en vez de elegir por vos, y `--criterio
+mediana|promedio|minimos` fija cuál manda.
+
+**Por qué el promedio es geométrico.** Los ratios de precio son multiplicativos:
+un precio que se duplica da 2.0 y uno que se parte al medio da 0.5. Promediados a
+la manera común dan 1.25, o sea "+25%", cuando en realidad se cancelan. Promediando
+los logaritmos dan 0%, que es lo correcto. Hay un test que fija esto.
 
 **Con pocos datos no opina.** Con menos de 2 noches te dice que no dice nada; con
 menos de 4, que lo tomes como indicio; y no saca conclusiones de una hora con
@@ -507,6 +530,6 @@ propio, apuntá `AGODA_CHROME` a su ejecutable.
 npm test
 ```
 
-65 tests sobre el parseo (con una respuesta real de Agoda como fixture), los
+68 tests sobre el parseo (con una respuesta real de Agoda como fixture), los
 filtros, el orden, las fechas, las miniaturas, los links, el armado del cron, el
 cruce entre noches a la misma hora y el cálculo de bajadas.

@@ -131,8 +131,9 @@ export function tablaComparacion(filas, { moneda = '' } = {}) {
  * Tabla de horarios con una barra centrada en cero: a la izquierda las horas mas
  * baratas que lo tipico del dia, a la derecha las mas caras.
  */
-export function tablaHorarios(horas, { minSeries = 5, mejor = null } = {}) {
-  const escala = Math.max(6, ...horas.map((h) => Math.abs(h.indicePct)));
+export function tablaHorarios(horas, { minSeries = 5, mejor = null, grafica = 'mediana' } = {}) {
+  const columna = grafica === 'promedio' ? 'promedioPct' : 'indicePct';
+  const escala = Math.max(6, ...horas.map((h) => Math.abs(h[columna] ?? 0)));
   const ANCHO = 18;
 
   const barra = (pct) => {
@@ -142,19 +143,24 @@ export function tablaHorarios(horas, { minSeries = 5, mejor = null } = {}) {
     return ' '.repeat(ANCHO) + c('gray', '│') + ' '.repeat(ANCHO);
   };
 
+  const pct = (v) => (v == null ? '-' : `${v > 0 ? '+' : ''}${v.toFixed(1)}%`);
+  const flojas = (h) => h.series < minSeries;
+
   const datos = horas.map((h) => ({
     hora: `${String(h.hora).padStart(2, '0')}:00`,
-    indice: h.series < minSeries ? c('gray', 'pocas') : `${h.indicePct > 0 ? '+' : ''}${h.indicePct.toFixed(1)}%`,
-    grafico: barra(h.series < minSeries ? 0 : h.indicePct),
+    tipico: flojas(h) ? c('gray', 'pocas') : pct(h.indicePct),
+    promedio: flojas(h) ? c('gray', '-') : pct(h.promedioPct),
+    grafico: barra(flojas(h) ? 0 : (grafica === 'promedio' ? h.promedioPct : h.indicePct)),
     minimo: h.vecesMinimo || '',
     series: h.series,
     noches: h.noches,
-    marca: mejor && h.hora === mejor.hora ? c('green', '← mas barata') : '',
+    marca: mejor && h.hora === mejor.hora ? c('green', '← mejor') : '',
   }));
 
   return tabla(datos, [
     { key: 'hora', title: 'hora' },
-    { key: 'indice', title: 'vs el dia', align: 'right' },
+    { key: 'tipico', title: 'tipico', align: 'right' },
+    { key: 'promedio', title: 'promedio', align: 'right' },
     { key: 'grafico', title: `mas barato ${' '.repeat(6)}│${' '.repeat(6)} mas caro` },
     { key: 'minimo', title: 'fue el min', align: 'right', color: 'cyan' },
     { key: 'series', title: 'muestras', align: 'right', color: 'gray' },

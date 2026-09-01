@@ -178,6 +178,7 @@ alojamiento **a la misma hora del día**:
 agoda comparar                 # última muestra de hoy vs esa misma hora anoche
 agoda comparar --hora 19       # las 19:00 de hoy vs las 19:00 de anoche
 agoda comparar --contra 7      # contra la misma noche de la semana pasada
+agoda comparar --base hora     # estricto: solo lo que tenga par a la misma hora
 ```
 
 ```
@@ -194,9 +195,32 @@ contra la noche del 2026-08-31, cruzando cada uno a las ~19:00
   En conjunto, la noche esta -4% respecto de la anterior a la misma hora.
 ```
 
-Si las dos noches no tienen muestras a horas parecidas, **te lo dice en vez de
-comparar cualquier cosa**. `--tolerancia <min>` afloja ese margen (90 por defecto);
-subilo solo sabiendo que el resultado vale menos.
+### Cuando no hay muestras a la misma hora
+
+Donde no encuentra par a la misma hora, compara contra **el precio más bajo que
+tocó ese alojamiento esa noche**, y lo marca aparte:
+
+```
+   #    hoy  la noche anterior  referencia      dif     %  tipo   zona         alojamiento
+   1  81,20                140  mejor 20:48  -59,20  -42%  depto  San Nicolás  Centro, amplio, luminoso
+   2  78,28                112  mejor 20:48  -33,29  -30%  depto  Palermo      Modern Apartments in Palermo
+```
+
+Ojo con esto: **ese mejor precio es el piso de toda la noche**, así que la
+comparación tira sistemáticamente para arriba — no es lo mismo que comparar hora
+contra hora. Por eso va siempre etiquetada: en la tabla la columna `referencia`
+dice `mejor`, y en la página el chip dice *vs lo mejor de anoche* con el borde
+punteado.
+
+`--base` controla el criterio:
+
+| | |
+| --- | --- |
+| `--base auto` | por defecto: misma hora donde se puede, mejor precio donde no |
+| `--base hora` | solo misma hora; lo que no tenga par queda afuera |
+| `--base mejor` | siempre contra el mejor precio de esa noche |
+
+`--tolerancia <min>` afloja el margen de la hora (90 por defecto).
 
 En la página, cada ficha muestra un chip `▼ -13% vs anoche`, la lista tiene su
 columna, y hay filtro *solo más baratos que anoche* y orden por esa diferencia.
@@ -410,6 +434,6 @@ propio, apuntá `AGODA_CHROME` a su ejecutable.
 npm test
 ```
 
-50 tests sobre el parseo (con una respuesta real de Agoda como fixture), los
+54 tests sobre el parseo (con una respuesta real de Agoda como fixture), los
 filtros, el orden, las fechas, las miniaturas, los links, el armado del cron, el
 cruce entre noches a la misma hora y el cálculo de bajadas.

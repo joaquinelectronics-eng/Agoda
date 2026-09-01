@@ -36,22 +36,45 @@ export function masCercanaEnHora(observaciones, minutosRef, toleranciaMin) {
   return { ...mejor, distanciaMin: mejorDist };
 }
 
+/** El precio mas bajo que toco una propiedad en una noche, y cuando lo toco. */
+export function mejorDeLaNoche(observaciones) {
+  let mejor = null;
+  for (const o of observaciones) {
+    if (o.por_noche == null) continue;
+    if (!mejor || o.por_noche < mejor.por_noche) mejor = o;
+  }
+  return mejor;
+}
+
 /**
- * Compara una busqueda contra la de `diasAtras` noches antes, cruzando cada
- * propiedad a la misma hora del dia.
+ * Compara una busqueda contra la de `diasAtras` noches antes.
  *
- * Devuelve { hermana, referencia, filas, sinPar } donde cada fila trae el precio
- * de hoy, el de la noche anterior a esa misma hora, y la diferencia.
+ * base:
+ *   'hora'  cruza cada propiedad a la misma hora del dia. Es la comparacion
+ *           honesta: los precios siguen una curva, y las 19 de hoy solo se
+ *           comparan con las 19 de ayer.
+ *   'mejor' compara contra el precio mas bajo que toco esa noche. Sirve como
+ *           referencia ("¿llegue a lo que llego a valer anoche?") pero esta
+ *           sesgada: el minimo es el piso de todo el dia, asi que casi todo va a
+ *           dar mas caro. Por eso las filas quedan marcadas con su base.
+ *   'auto'  (por defecto) usa 'hora' donde se puede y cae en 'mejor' donde no.
+ *
+ * Devuelve { hermana, referencia, filas, sinPar, porBase }.
  */
-export function compararConDiaAnterior(db, busqueda, { diasAtras = 1, toleranciaMin = 90, hora = null } = {}) {
+export function compararConDiaAnterior(db, busqueda, {
+  diasAtras = 1, toleranciaMin = 90, hora = null, base = 'auto',
+} = {}) {
+  if (!['auto', 'hora', 'mejor'].includes(base)) {
+    throw new Error(`Base de comparacion desconocida: "${base}". Usa auto, hora o mejor.`);
+  }
   const checkInAnterior = addDays(busqueda.check_in, -diasAtras);
   const hermana = DB.busquedaHermana(db, busqueda, checkInAnterior);
   if (!hermana) {
-    return { hermana: null, checkInAnterior, filas: [], sinPar: 0, referencia: null };
+    return { hermana: null, checkInAnterior, filas: [], sinPar: 0, referencia: null, porBase: {} };
   }
 
   const hoy = DB.observaciones(db, busqueda.id);
-  if (!hoy.length) return { hermana, checkInAnterior, filas: [], sinPar: 0, referencia: null };
+  if (!hoy.length) return { hermana, checkInAnterior, filas: [], sinPar: 0, referencia: null, porBase: {} };
 
   // La hora de referencia: la que pidan, o la de la ultima muestra de hoy.
   const ultima = hoy[hoy.length - 1].tomado;
@@ -63,25 +86,42 @@ export function compararConDiaAnterior(db, busqueda, { diasAtras = 1, tolerancia
   const porPropAyer = agrupar(DB.observaciones(db, hermana.id));
 
   const filas = [];
+  const porBase = { hora: 0, mejor: 0 };
   let sinPar = 0;
+
   for (const [propertyId, obs] of porPropHoy) {
-    const ahora = masCercanaEnHora(obs, minutosRef, toleranciaMin);
-    if (!ahora) continue;
-    const antes = porPropAyer.has(propertyId)
-      ? masCercanaEnHora(porPropAyer.get(propertyId), minutosRef, toleranciaMin)
-      : null;
+    // De hoy siempre tomamos lo mas cercano a la hora de referencia; si no hay
+    // nada cerca, la ultima observacion, que es el precio vigente.
+    const ahora = masCercanaEnHora(obs, minutosRef, toleranciaMin) ?? obs[obs.length - 1];
+    if (!ahora || ahora.por_noche == null) continue;
+
+    const obsAyer = porPropAyer.get(propertyId);
+    if (!obsAyer || !obsAyer.length) { sinPar++; continue; }
+
+    let antes = null;
+    let usada = null;
+    if (base !== 'mejor') {
+      antes = masCercanaEnHora(obsAyer, minutosRef, toleranciaMin);
+      if (antes) usada = 'hora';
+    }
+    if (!antes && base !== 'hora') {
+      antes = mejorDeLaNoche(obsAyer);
+      if (antes) usada = 'mejor';
+    }
     if (!antes) { sinPar++; continue; }
 
     const delta = ahora.por_noche - antes.por_noche;
+    porBase[usada]++;
     filas.push({
       property_id: propertyId,
       hoy: ahora.por_noche,
       ayer: antes.por_noche,
+      base: usada,
       delta,
       pct: antes.por_noche ? (delta / antes.por_noche) * 100 : null,
       tomadoHoy: ahora.tomado,
       tomadoAyer: antes.tomado,
-      desfasajeMin: ahora.distanciaMin + antes.distanciaMin,
+      horaAyer: etiquetaHora(minutosDelDia(antes.tomado)),
     });
   }
 
@@ -91,6 +131,7 @@ export function compararConDiaAnterior(db, busqueda, { diasAtras = 1, tolerancia
     referencia: { minutos: minutosRef, etiqueta: etiquetaHora(minutosRef) },
     filas,
     sinPar,
+    porBase,
   };
 }
 

@@ -129,3 +129,75 @@ test('no cruza con una busqueda de otra ocupacion o moneda', () => {
   assert.equal(compararConDiaAnterior(db, hoy).hermana, null);
   db.close();
 });
+
+// --- respaldo: contra el mejor precio de la noche anterior -------------------
+
+test('sin muestras a la misma hora, cae en el mejor precio de esa noche', () => {
+  const db = dbTemporal();
+  const hoy = DB.guardarBusqueda(db, { ...BASE, checkIn: '2026-09-02' });
+  const ayer = DB.guardarBusqueda(db, { ...BASE, checkIn: '2026-09-01' });
+  // Anoche solo muestreamos de noche; hoy solo al mediodia. No hay hora en comun.
+  muestraA(db, ayer.id, cuando('2026-09-01', 20), [prop(1, 100)]);
+  muestraA(db, ayer.id, cuando('2026-09-01', 22), [prop(1, 80)]);
+  muestraA(db, hoy.id, cuando('2026-09-02', 12), [prop(1, 90)]);
+
+  const r = compararConDiaAnterior(db, hoy);
+  assert.equal(r.filas.length, 1);
+  assert.equal(r.filas[0].base, 'mejor');
+  assert.equal(r.filas[0].ayer, 80, 'el minimo de esa noche, no la primera muestra');
+  assert.equal(r.filas[0].horaAyer, '22:00');
+  assert.equal(r.filas[0].hoy, 90);
+  assert.equal(r.filas[0].delta, 10);
+  assert.equal(r.porBase.mejor, 1);
+  assert.equal(r.porBase.hora, 0);
+  db.close();
+});
+
+test('cuando hay misma hora, la prefiere y no usa el minimo', () => {
+  const db = dbTemporal();
+  const hoy = DB.guardarBusqueda(db, { ...BASE, checkIn: '2026-09-02' });
+  const ayer = DB.guardarBusqueda(db, { ...BASE, checkIn: '2026-09-01' });
+  muestraA(db, ayer.id, cuando('2026-09-01', 19), [prop(1, 100)]);
+  muestraA(db, ayer.id, cuando('2026-09-01', 23), [prop(1, 60)]);
+  muestraA(db, hoy.id, cuando('2026-09-02', 19), [prop(1, 90)]);
+
+  const r = compararConDiaAnterior(db, hoy);
+  assert.equal(r.filas[0].base, 'hora');
+  assert.equal(r.filas[0].ayer, 100, 'las 19 de ayer, no el minimo de las 23');
+  db.close();
+});
+
+test('base "hora" no cae en el respaldo, y base "mejor" ignora la hora', () => {
+  const db = dbTemporal();
+  const hoy = DB.guardarBusqueda(db, { ...BASE, checkIn: '2026-09-02' });
+  const ayer = DB.guardarBusqueda(db, { ...BASE, checkIn: '2026-09-01' });
+  muestraA(db, ayer.id, cuando('2026-09-01', 20), [prop(1, 100)]);
+  muestraA(db, ayer.id, cuando('2026-09-01', 22), [prop(1, 80)]);
+  muestraA(db, hoy.id, cuando('2026-09-02', 12), [prop(1, 90)]);
+
+  assert.equal(compararConDiaAnterior(db, hoy, { base: 'hora' }).filas.length, 0, 'estricto: no compara');
+  assert.equal(compararConDiaAnterior(db, hoy, { base: 'hora' }).sinPar, 1);
+
+  const conMismaHora = compararConDiaAnterior(db, hoy, { base: 'mejor' });
+  assert.equal(conMismaHora.filas[0].ayer, 80);
+  assert.equal(conMismaHora.filas[0].base, 'mejor');
+  assert.throws(() => compararConDiaAnterior(db, hoy, { base: 'cualquiera' }), /Base de comparacion desconocida/);
+  db.close();
+});
+
+test('una mezcla deja cada fila marcada con la base que uso', () => {
+  const db = dbTemporal();
+  const hoy = DB.guardarBusqueda(db, { ...BASE, checkIn: '2026-09-02' });
+  const ayer = DB.guardarBusqueda(db, { ...BASE, checkIn: '2026-09-01' });
+  // La 1 tiene muestra a las 19 anoche; la 2 solo a las 23.
+  muestraA(db, ayer.id, cuando('2026-09-01', 19), [prop(1, 100)]);
+  muestraA(db, ayer.id, cuando('2026-09-01', 23), [prop(2, 200)]);
+  muestraA(db, hoy.id, cuando('2026-09-02', 19), [prop(1, 90), prop(2, 150)]);
+
+  const r = compararConDiaAnterior(db, hoy);
+  const porId = new Map(r.filas.map((f) => [f.property_id, f]));
+  assert.equal(porId.get(1).base, 'hora');
+  assert.equal(porId.get(2).base, 'mejor');
+  assert.deepEqual(r.porBase, { hora: 1, mejor: 1 });
+  db.close();
+});

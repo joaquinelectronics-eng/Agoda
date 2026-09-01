@@ -116,6 +116,9 @@ ${B('COMPARAR NOCHES')}   ${G('(comando comparar)')}
   --contra <n>         Contra cuantas noches atras (1)
   --hora <h>           Cruzar a esa hora en vez de la ultima muestra
   --tolerancia <min>   Cuanto puede desviarse la hora al cruzar (90)
+  --base <modo>        auto (por defecto): misma hora, y donde no hay, el mejor
+                       precio de esa noche. hora: solo misma hora. mejor: solo
+                       contra el mejor precio de esa noche
 
 ${B('AUTOMATICO')}   ${G('(comando programar: corre aunque cierres la terminal)')}
   --cada <min>         Cada cuanto muestrear; tiene que dividir a 60 (60)

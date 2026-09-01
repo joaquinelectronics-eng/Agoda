@@ -631,6 +631,7 @@ export async function cmdComparar(db, op, pos) {
     diasAtras,
     hora: op.hora === undefined ? null : num(op.hora),
     toleranciaMin: num(op.tolerancia, 90),
+    base: normalizar(op.base ?? 'auto'),
   });
 
   if (!r.hermana) {
@@ -640,8 +641,8 @@ export async function cmdComparar(db, op, pos) {
     );
   }
   if (!r.filas.length) {
-    warn(`Las dos noches estan guardadas pero no hay muestras a horas parecidas (tolerancia ${num(op.tolerancia, 90)} min).`);
-    log(c('gray', '  Proba con --hora <h> o subiendo --tolerancia.'));
+    warn(`Las dos noches estan guardadas pero no hay con que cruzarlas.`);
+    log(c('gray', '  Proba con --hora <h>, subiendo --tolerancia, o --base mejor.'));
     return;
   }
 
@@ -656,7 +657,14 @@ export async function cmdComparar(db, op, pos) {
   if (op.json) { log(JSON.stringify(listas, null, 2)); return; }
 
   encabezado(busqueda);
-  log(c('gray', `contra la noche del ${r.hermana.check_in}, cruzando cada uno a las ~${r.referencia.etiqueta}`));
+  if (r.porBase.hora && !r.porBase.mejor) {
+    log(c('gray', `contra la noche del ${r.hermana.check_in}, cruzando cada uno a las ~${r.referencia.etiqueta}`));
+  } else if (r.porBase.mejor && !r.porBase.hora) {
+    log(c('gray', `contra el mejor precio que toco cada uno la noche del ${r.hermana.check_in}`));
+    log(c('yellow', '! Ojo: ese mejor precio es el piso de toda esa noche, asi que la comparacion tira para arriba.'));
+  } else {
+    log(c('gray', `contra la noche del ${r.hermana.check_in}: ${r.porBase.hora} a las ~${r.referencia.etiqueta}, ${r.porBase.mejor} contra el mejor precio de esa noche`));
+  }
   log('');
   const limite = num(op.limite, 25);
   log(OUT.tablaComparacion(listas.slice(0, limite), { moneda: busqueda.moneda }));
@@ -665,12 +673,21 @@ export async function cmdComparar(db, op, pos) {
   const subieron = listas.filter((f) => f.delta > 0);
   const medianaPct = mediana(listas.map((f) => f.pct).filter((x) => x != null));
   log('');
+  // El texto tiene que decir contra que se comparo, o el numero enganna.
+  const soloPiso = r.porBase.mejor && !r.porBase.hora;
+  const contraQue = soloPiso
+    ? `lo mejor de ${diasAtras === 1 ? 'anoche' : 'esa noche'}`
+    : (diasAtras === 1 ? 'anoche' : 'esa noche');
   const iguales = listas.length - bajaron.length - subieron.length;
-  log(`  ${c('bold', String(listas.length))} comparables · ${c('green', `${bajaron.length} mas baratos que ${diasAtras === 1 ? 'anoche' : 'esa noche'}`)} · ` +
+  log(`  ${c('bold', String(listas.length))} comparables · ${c('green', `${bajaron.length} mas baratos que ${contraQue}`)} · ` +
       `${c('red', `${subieron.length} mas caros`)}` + (iguales ? c('gray', ` · ${iguales} igual`) : ''));
   if (medianaPct != null) {
     const signo = medianaPct < 0 ? c('green', fmtPct(medianaPct)) : c('red', fmtPct(medianaPct));
-    log(`  En conjunto, la noche esta ${signo} respecto de la anterior a la misma hora.`);
+    const base = soloPiso ? 'del piso de esa noche' : 'de la anterior a la misma hora';
+    log(`  En conjunto, la noche esta ${signo} respecto ${base}.`);
+  }
+  if (r.porBase.mejor && r.porBase.hora) {
+    log(c('gray', `  ${r.porBase.mejor} de esas comparan contra el mejor precio de la noche (marcadas "mejor"), no contra la misma hora.`));
   }
   if (r.sinPar) log(c('gray', `  ${r.sinPar} publicaciones de hoy no estaban esa noche (no se pueden comparar).`));
   if (listas.length > limite) log(c('gray', `  (mostrando ${limite} de ${listas.length}; usa --limite)`));

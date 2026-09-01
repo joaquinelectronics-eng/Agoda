@@ -105,6 +105,7 @@ export function tablaComparacion(filas, { moneda = '' } = {}) {
     n: i + 1,
     hoy: fmtPrecio(f.hoy),
     ayer: fmtPrecio(f.ayer),
+    ref: f.base === 'mejor' ? `mejor ${f.horaAyer ?? ''}`.trim() : (f.horaAyer ?? ''),
     dif: fmtPrecio(f.delta),
     pct: fmtPct(f.pct),
     nota: f.nota ? f.nota.toFixed(1) : '-',
@@ -116,6 +117,7 @@ export function tablaComparacion(filas, { moneda = '' } = {}) {
     { key: 'n', title: '#', align: 'right' },
     { key: 'hoy', title: 'hoy', align: 'right', color: 'green' },
     { key: 'ayer', title: 'la noche anterior', align: 'right', color: 'gray' },
+    { key: 'ref', title: 'referencia', color: (f) => (String(f.ref).startsWith('mejor') ? 'yellow' : 'gray') },
     { key: 'dif', title: 'dif', align: 'right' },
     { key: 'pct', title: '%', align: 'right', color: (f) => (String(f.pct).startsWith('-') ? 'green' : 'red') },
     { key: 'nota', title: 'nota', align: 'right', color: 'cyan' },
@@ -249,8 +251,10 @@ function filaParaWeb(f, { historiales, fotos, busqueda, anchoFoto, contraAyer })
     canc: /free/i.test(f.cancelacion ?? '') ? 1 : 0,
     libres: f.habitaciones_libres ?? f.habitacionesLibres ?? null,
     hist: (historiales[id] ?? []).map((p) => p.por_noche),
-    ayer: ayer ? ayer.ayer : null,             // precio de la noche anterior a esta misma hora
+    ayer: ayer ? ayer.ayer : null,             // precio de referencia de la noche anterior
     ayerPct: ayer ? ayer.pct : null,
+    ayerBase: ayer ? ayer.base : null,         // 'hora' = a esta misma hora | 'mejor' = el piso de esa noche
+    ayerHora: ayer ? ayer.horaAyer : null,
   };
 }
 
@@ -398,6 +402,7 @@ const ESTILOS = `
   .vsAyer.mejor{color:var(--good); border:1px solid var(--good)}
   .vsAyer.peor{color:var(--bad); border:1px solid var(--bad)}
   .vsAyer.igual{color:var(--muted); border:1px solid var(--line2)}
+  .vsAyer.piso{border-style:dashed}
   .tesis.ayer{background:var(--surface2); border-color:var(--line2)}
   .tesis.ayer b{color:var(--ink)}
   .pie{margin-top:auto; padding-top:9px; display:flex; align-items:center; justify-content:space-between; gap:8px}
@@ -518,9 +523,23 @@ export function reporteHtml(filas, {
   <div class="tesis">Agoda muestra en sus tarjetas el precio <b>sin impuestos</b>. Acá el orden es por
   <b>precio final</b>${recargoMax > 1 ? `, y el recargo llega al <b>${recargoMax.toFixed(0)}%</b> en esta búsqueda` : ''}:
   el que parece más barato muchas veces no lo es.</div>
-  ${conAyer.length ? `<div class="tesis ayer">Comparado con <b>la noche del ${escHtml(comparacion?.hermana?.check_in ?? '')}</b> a la misma hora
-  (~${escHtml(comparacion?.referencia?.etiqueta ?? '')}): <b>${conAyer.filter((d) => d.ayerPct < -0.5).length}</b> están más baratos que esa noche,
-  ${conAyer.filter((d) => d.ayerPct > 0.5).length} más caros, sobre ${conAyer.length} comparables.</div>` : ''}
+  ${conAyer.length ? (() => {
+    const piso = conAyer.filter((d) => d.ayerBase === 'mejor').length;
+    const hora = conAyer.length - piso;
+    const masBaratos = conAyer.filter((d) => d.ayerPct < -0.5).length;
+    const masCaros = conAyer.filter((d) => d.ayerPct > 0.5).length;
+    const noche = escHtml(comparacion?.hermana?.check_in ?? '');
+    const contra = piso && !hora
+      ? `con <b>el precio más bajo que tocó cada uno la noche del ${noche}</b>`
+      : piso
+        ? `con <b>la noche del ${noche}</b> (${hora} a la misma hora ~${escHtml(comparacion?.referencia?.etiqueta ?? '')}, ${piso} contra el mejor precio de esa noche)`
+        : `con <b>la noche del ${noche}</b> a la misma hora (~${escHtml(comparacion?.referencia?.etiqueta ?? '')})`;
+    const aclara = piso
+      ? ' Ese mejor precio es el piso de toda la noche, así que esa parte de la comparación tira para arriba; van con el borde punteado.'
+      : '';
+    return `<div class="tesis ayer">Comparado ${contra}: <b>${masBaratos}</b> están más baratos, ${masCaros} más caros,
+      sobre ${conAyer.length} comparables.${aclara}</div>`;
+  })() : ''}
   <div class="tesis nota" id="notaEnmarcado" hidden>Esta página está embebida, y el navegador puede
   no dejarla abrir pestañas nuevas. Si al tocar una ficha no pasa nada, usá <b>Copiar link</b> y pegalo
   en una pestaña. En el archivo HTML que genera <code>agoda reporte</code> los links abren normal.</div>
@@ -565,7 +584,7 @@ export function reporteHtml(filas, {
     <button type="button" class="chip" id="fsentido" title="Invertir el orden">↑ menor primero</button>
     <label class="marca"><input type="checkbox" id="fcanc"> cancelación gratis</label>
     <label class="marca"><input type="checkbox" id="fbaja"> solo los que bajaron hoy</label>
-    ${conAyer.length ? '<label class="marca"><input type="checkbox" id="fayer"> solo más baratos que anoche</label>' : ''}
+    ${conAyer.length ? `<label class="marca"><input type="checkbox" id="fayer"> solo más baratos que ${conAyer.every((d) => d.ayerBase === 'mejor') ? 'lo mejor de anoche' : 'anoche'}</label>` : ''}
   </div>
 </div>
 
@@ -687,9 +706,14 @@ function ficha(d) {
   var vsAyer = '';
   if (d.ayerPct != null) {
     var mejor = d.ayerPct < -0.5, peor = d.ayerPct > 0.5;
-    vsAyer = '<span class="vsAyer ' + (mejor ? 'mejor' : peor ? 'peor' : 'igual') + '" ' +
-      'title="La noche anterior, a esta misma hora, costaba ' + fmt(d.ayer) + '">' +
-      (mejor ? '▼ ' : peor ? '▲ ' : '= ') + (d.ayerPct > 0 ? '+' : '') + d.ayerPct.toFixed(0) + '% vs anoche</span>';
+    var contraElPiso = d.ayerBase === 'mejor';
+    var leyenda = contraElPiso ? '% vs lo mejor de anoche' : '% vs anoche';
+    var explica = contraElPiso
+      ? 'Lo mas barato que llego a estar la noche anterior: ' + fmt(d.ayer) + ' (' + (d.ayerHora || '') + '). Es el piso de toda esa noche, no la misma hora.'
+      : 'La noche anterior, a esta misma hora (' + (d.ayerHora || '') + '), costaba ' + fmt(d.ayer);
+    vsAyer = '<span class="vsAyer ' + (mejor ? 'mejor' : peor ? 'peor' : 'igual') + (contraElPiso ? ' piso' : '') + '" ' +
+      'title="' + explica + '">' +
+      (mejor ? '▼ ' : peor ? '▲ ' : '= ') + (d.ayerPct > 0 ? '+' : '') + d.ayerPct.toFixed(0) + leyenda + '</span>';
   }
   var sinImp = (estado.conImpuestos && d.base != null && d.base !== d.final)
     ? '<span class="sinImp">Agoda publica ' + fmt(d.base) + '</span>' : '';
@@ -744,7 +768,8 @@ function fila(d, i) {
       '<span class="n ' + clase + '">' + (b == null ? '' : (b > 0 ? '+' : '') + b.toFixed(0) + '%') + '</span></span></td>' +
     (VER_AYER ? '<td class="der">' + (d.ayerPct == null ? '<span style="color:var(--muted)">—</span>' :
       '<span class="n ' + (d.ayerPct < -0.5 ? 'baja' : d.ayerPct > 0.5 ? 'sube' : 'plano') + '">' +
-      (d.ayerPct > 0 ? '+' : '') + d.ayerPct.toFixed(0) + '%</span><div class="sombraTxt">' + fmt(d.ayer) + '</div>') + '</td>' : '') +
+      (d.ayerPct > 0 ? '+' : '') + d.ayerPct.toFixed(0) + '%</span><div class="sombraTxt">' +
+      (d.ayerBase === 'mejor' ? 'mejor ' : '') + fmt(d.ayer) + '</div>') + '</td>' : '') +
     '<td class="der"><span class="n" style="font-weight:600">' + (d.nota == null ? '–' : d.nota.toFixed(1)) + '</span>' +
       (d.reviews ? '<div class="sombraTxt">' + d.reviews + '</div>' : '') + '</td>' +
     '<td style="color:var(--muted)">' + esc(d.tipo) + '</td><td>' + esc(d.zona) + '</td>' +

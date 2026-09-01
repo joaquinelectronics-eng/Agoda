@@ -22,6 +22,7 @@ const COMANDOS = {
   reporte: cmd.cmdReporte, report: cmd.cmdReporte,
   buscas: cmd.cmdBuscas, searches: cmd.cmdBuscas,
   destinos: cmd.cmdDestinos, destinations: cmd.cmdDestinos,
+  programar: cmd.cmdProgramar, schedule: cmd.cmdProgramar,
 };
 
 const { comando, pos, op } = parsear(process.argv.slice(2));

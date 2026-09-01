@@ -1,6 +1,8 @@
 // Los comandos del CLI.
 
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import * as DB from './db.mjs';
 import { abrirNavegador } from './browser.mjs';
@@ -86,7 +88,7 @@ async function armarBusqueda(db, page, op, pos) {
   if (!destino) {
     const ultima = DB.buscarBusqueda(db);
     if (!ultima) throw new Error('Decime un destino: agoda buscar "Buenos Aires"');
-    log(c('gray', `  (usando el destino de la ultima busqueda: ${ultima.ciudad ?? ultima.ciudad_id})`));
+    if (!op.silencioso) log(c('gray', `  (usando el destino de la ultima busqueda: ${ultima.ciudad ?? ultima.ciudad_id})`));
     return { ...base, ciudadId: ultima.ciudad_id, ciudad: ultima.ciudad, url: construirUrl({ ...base, cityId: ultima.ciudad_id }) };
   }
 
@@ -164,8 +166,8 @@ export async function cmdBuscar(db, op, pos) {
   let ctx, datos;
   try {
     ctx = await armarBusqueda(db, page, op, pos);
-    log(c('gray', `  buscando: ${ctx.url}`));
-    datos = await scrapear(page, ctx.url, { paginas: paginasPedidas(op) });
+    if (!op.silencioso) log(c('gray', `  buscando: ${ctx.url}`));
+    datos = await scrapear(page, ctx.url, { paginas: paginasPedidas(op), verboso: !op.silencioso });
   } finally {
     await cerrar();
   }
@@ -184,6 +186,19 @@ export async function cmdBuscar(db, op, pos) {
   const listas = preparar(filas, op);
   if (op.json) { log(JSON.stringify(listas, null, 2)); return; }
 
+  // Modo para tareas programadas: una linea con fecha, y el HTML al dia.
+  if (op.silencioso) {
+    let extra = '';
+    if (op.html && snapshotId) {
+      const { destino } = await generarReporte(db, busqueda, op, { silencioso: true });
+      extra = ` · ${destino}`;
+    }
+    const bajaron = listas.filter((f) => f._bajadaPct != null && f._bajadaPct < -0.5).length;
+    log(`${new Date().toISOString()} ${busqueda.ciudad ?? busqueda.ciudad_id} ${busqueda.check_in} · ` +
+        `${datos.propiedades.length} alojamientos · ${bajaron} bajaron${extra}`);
+    return;
+  }
+
   encabezado(busqueda, { total: datos.propiedades.length });
   log(c('gray', `${datos.totalDisponibles ?? '?'} disponibles en Agoda · bajamos ${datos.propiedades.length} (${datos.paginas} pagina/s)`));
   log('');
@@ -195,7 +210,14 @@ export async function cmdBuscar(db, op, pos) {
   }));
   resumen(listas, busqueda.moneda);
   if (listas.length > limite) log(c('gray', `  (mostrando ${limite} de ${listas.length}; usa --limite)`));
-  exportar(db, listas, op, { busqueda });
+
+  if (op.html && snapshotId) {
+    const { destino } = await generarReporte(db, busqueda, op);
+    log(c('gray', `  HTML: ${destino}`));
+    if (op.csv) log(c('gray', `  CSV: ${OUT.guardar(op.csv, OUT.aCsv(listas))}`));
+  } else {
+    exportar(db, listas, op, { busqueda });
+  }
 }
 
 // --- ver --------------------------------------------------------------------
@@ -436,7 +458,7 @@ function avisar(ch, busqueda, comando) {
  * Los filtros que se pasan al reporte no recortan la tabla: dejan los chips
  * marcados al abrir, para que se puedan destildar desde la pagina.
  */
-function preseleccionar(filas, op) {
+function preseleccionar(filas, op, { silencioso = false } = {}) {
   const pre = {
     tipos: [], zonas: [],
     max: num(op.max), minNota: num(op['min-nota']), minReviews: num(op['min-reviews']),
@@ -458,7 +480,7 @@ function preseleccionar(filas, op) {
     }
     pre.zonas = [...nombres];
     const sinDatos = pedidas.filter((t) => ![...nombres].some((z) => normalizar(z).includes(t)));
-    if (sinDatos.length) {
+    if (sinDatos.length && !silencioso) {
       warn(`No hay alojamientos guardados en: ${sinDatos.join(', ')}. Proba con --paginas todas.`);
     }
   }
@@ -471,7 +493,7 @@ function preseleccionar(filas, op) {
  * autonomo (sirve sin internet, y es lo unico que funciona si lo publicas en
  * algun lado que bloquee imagenes de otros dominios).
  */
-async function resolverFotos(filas, op, anchoFoto) {
+async function resolverFotos(filas, op, anchoFoto, { silencioso = false } = {}) {
   const modo = normalizar(op.fotos ?? 'url');
   if (modo === 'url') return null;
   if (modo === 'ninguna' || modo === 'sin') return new Map();
@@ -480,38 +502,46 @@ async function resolverFotos(filas, op, anchoFoto) {
   }
 
   const aviso = avisoProxy();
-  if (aviso) log(aviso);
+  if (aviso && !silencioso) log(aviso);
 
   // Mismo ancho que va a pedir la pagina, si no las claves no coinciden.
   const urls = filas.map((f) => miniatura(f.imagen, anchoFoto)).filter(Boolean);
-  log(c('gray', `  bajando ${new Set(urls).size} miniaturas...`));
+  if (!silencioso) log(c('gray', `  bajando ${new Set(urls).size} miniaturas...`));
   const { fotos, total, fallidas, bytes } = await incrustar(urls, {
-    alProgreso: (hechas, cuantas) => process.stderr.write(c('gray', `\r  ${hechas}/${cuantas}   `)),
+    alProgreso: silencioso ? null : (hechas, cuantas) => process.stderr.write(c('gray', `\r  ${hechas}/${cuantas}   `)),
   });
-  process.stderr.write('\r                              \r');
-  log(c('gray', `  ${total - fallidas}/${total} fotos incrustadas (${(bytes / 1e6).toFixed(1)} MB)` +
-    (fallidas ? `, ${fallidas} fallaron` : '')));
+  if (!silencioso) {
+    process.stderr.write('\r                              \r');
+    log(c('gray', `  ${total - fallidas}/${total} fotos incrustadas (${(bytes / 1e6).toFixed(1)} MB)` +
+      (fallidas ? `, ${fallidas} fallaron` : '')));
+  }
   return fotos;
 }
 
-export async function cmdReporte(db, op, pos) {
-  const busqueda = elegirBusqueda(db, op, pos);
+/** Arma el HTML de una busqueda. Lo usan tanto "reporte" como "buscar --html". */
+async function generarReporte(db, busqueda, op, { ruta = null, silencioso = false } = {}) {
   const snap = DB.ultimoSnapshot(db, busqueda.id);
   if (!snap) throw new Error('Esa busqueda no tiene muestras.');
 
   // A la pagina le mandamos todo lo disponible; filtrar es cosa suya.
   const crudas = filasConHistoria(db, busqueda.id, snap.id);
   const filas = enriquecer(filtrar(crudas, { incluirNoDisponibles: op.todos === true }), {});
-  const pre = preseleccionar(filas, op);
+  const pre = preseleccionar(filas, op, { silencioso });
   const muestras = DB.listarSnapshots(db, busqueda.id, 999).length;
 
   const anchoFoto = num(op['fotos-ancho'], 400);
-  const fotos = await resolverFotos(filas, op, anchoFoto);
+  const fotos = await resolverFotos(filas, op, anchoFoto, { silencioso });
 
-  const ruta = op.html || `reportes/agoda-${busqueda.check_in}.html`;
-  const destino = OUT.guardar(ruta, OUT.reporteHtml(filas, {
-    busqueda, historiales: historiales(db, busqueda.id, filas), preseleccion: pre, muestras, fotos, anchoFoto,
-  }));
+  const destino = OUT.guardar(ruta || op.html || `reportes/agoda-${busqueda.check_in}.html`,
+    OUT.reporteHtml(filas, {
+      busqueda, historiales: historiales(db, busqueda.id, filas), preseleccion: pre, muestras, fotos, anchoFoto,
+    }));
+  return { destino, filas, pre };
+}
+
+export async function cmdReporte(db, op, pos) {
+  const busqueda = elegirBusqueda(db, op, pos);
+  const { destino, filas, pre } = await generarReporte(db, busqueda, op);
 
   log(`\n  Reporte con ${filas.length} alojamientos: ${c('bold', destino)}`);
   if (pre.tipos.length || pre.zonas.length) {
@@ -577,4 +607,145 @@ function elegirBusqueda(db, op, pos) {
   }
   if (!cand.length) throw new Error('Ninguna busqueda guardada coincide con eso. Mirá "agoda buscas".');
   return cand[0];
+}
+
+// --- programar ---------------------------------------------------------------
+
+const MARCA_INICIO = '# >>> agoda-tracker';
+const MARCA_FIN = '# <<< agoda-tracker';
+
+// Opciones que tiene sentido arrastrar a la tarea programada.
+const HEREDABLES = [
+  'moneda', 'paginas', 'adultos', 'ninos', 'habitaciones', 'noches', 'noche', 'url',
+  'tipo', 'zona', 'sin-zona', 'max', 'min', 'max-total', 'min-nota', 'min-reviews',
+  'min-estrellas', 'cerca', 'radio', 'cancelacion-gratis', 'texto', 'todos',
+  'fotos', 'fotos-ancho', 'db',
+];
+
+function raizProyecto() {
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+}
+
+const entrecomillar = (v) => (/^[\w.,:\/@+-]+$/.test(String(v)) ? String(v) : `"${String(v).replace(/(["$`\\])/g, '\\$1')}"`);
+
+/** Reconstruye la linea de comando que va a correr cada hora. */
+function comandoProgramado(op, destino, { html, registro }) {
+  const raiz = raizProyecto();
+  const partes = [entrecomillar(process.execPath), 'bin/agoda.mjs', 'buscar'];
+  if (destino) partes.push(entrecomillar(destino));
+  for (const clave of HEREDABLES) {
+    const v = op[clave];
+    if (v === undefined) continue;
+    if (v === true) partes.push(`--${clave}`);
+    else partes.push(`--${clave}`, entrecomillar(v));
+  }
+  if (op.paginas === undefined) partes.push('--paginas', 'todas');
+  if (op.noche === undefined) partes.push('--noche', 'hoy');
+  partes.push('--silencioso', '--html', entrecomillar(html));
+  return { raiz, linea: `cd ${entrecomillar(raiz)} && ${partes.join(' ')} >> ${entrecomillar(registro)} 2>&1` };
+}
+
+/** Los tres primeros campos del cron: minutos, horas, y el resto todos los dias. */
+export function horarioCron(cada, desde, hasta) {
+  const minutos = cada === 60 ? '0' : `*/${cada}`;
+  const horas = desde === hasta ? String(desde) : `${desde}-${hasta}`;
+  return `${minutos} ${horas} * * *`;
+}
+
+export function horaDe(txt, porDefecto) {
+  const s = String(txt ?? porDefecto).trim();
+  const m = /^(\d{1,2})(?::(\d{2}))?$/.exec(s);
+  if (!m) throw new Error(`Hora invalida: "${s}". Usa por ejemplo 12 o 12:00.`);
+  const h = Number(m[1]);
+  if (h < 0 || h > 23) throw new Error(`Hora fuera de rango: ${h}`);
+  return h;
+}
+
+function leerCrontab() {
+  try {
+    return execFileSync('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  } catch {
+    return ''; // todavia no hay crontab, o no existe el comando
+  }
+}
+
+function escribirCrontab(texto) {
+  execFileSync('crontab', ['-'], { input: texto.endsWith('\n') ? texto : texto + '\n', stdio: ['pipe', 'ignore', 'pipe'] });
+}
+
+export function sinBloque(texto) {
+  const lineas = texto.split('\n');
+  const salida = [];
+  let dentro = false;
+  for (const l of lineas) {
+    if (l.trim() === MARCA_INICIO) { dentro = true; continue; }
+    if (l.trim() === MARCA_FIN) { dentro = false; continue; }
+    if (!dentro) salida.push(l);
+  }
+  return salida.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+export async function cmdProgramar(db, op, pos) {
+  const cada = num(op.cada, 60);
+  if (cada < 5 || cada > 60 || 60 % cada !== 0) {
+    throw new Error(`--cada tiene que dividir a 60 (5, 10, 12, 15, 20, 30 o 60). Recibi ${cada}.`);
+  }
+  const desde = horaDe(op['desde-hora'], 12);
+  const hasta = horaDe(op['hasta-hora'], 23);
+  if (hasta < desde) throw new Error(`--hasta-hora (${hasta}) no puede ser antes que --desde-hora (${desde}).`);
+
+  if (op.quitar) {
+    if (process.platform === 'win32') {
+      log('  En Windows:  schtasks /delete /tn "agoda-tracker" /f');
+      return;
+    }
+    const limpio = sinBloque(leerCrontab());
+    escribirCrontab(limpio);
+    log(c('green', '  Listo, saque la tarea del crontab.'));
+    return;
+  }
+
+  const destino = pos[0] ?? DB.buscarBusqueda(db)?.ciudad ?? null;
+  if (!destino && !op.url) throw new Error('Decime un destino: agoda programar "Buenos Aires"');
+
+  const html = op.html ?? 'reportes/hoy.html';
+  const registro = op.registro ?? 'data/agoda.log';
+  const { raiz, linea } = comandoProgramado(op, destino, { html, registro });
+  const cron = `${horarioCron(cada, desde, hasta)} ${linea}`;
+
+  const porDia = Math.floor(60 / cada) * (hasta - desde + 1);
+  log('');
+  log(`  ${c('bold', `Cada ${cada} min, de ${desde}:00 a ${hasta}:59`)} ${c('gray', `(${porDia} muestras por dia)`)}`);
+  log(c('gray', `  Cada corrida guarda una muestra y regenera ${html}`));
+  log('');
+
+  if (process.platform === 'win32') {
+    const tarea = `schtasks /create /tn "agoda-tracker" /tr ${entrecomillar(linea)} /sc minute /mo ${cada} /st ${String(desde).padStart(2, '0')}:00 /f`;
+    log(c('bold', '  Windows — pegá esto en una consola:'));
+    log(`\n${tarea}\n`);
+    log(c('gray', '  Para sacarla:  schtasks /delete /tn "agoda-tracker" /f'));
+    return;
+  }
+
+  log(c('bold', '  Linea de crontab:'));
+  log(`\n${cron}\n`);
+
+  if (!op.instalar) {
+    log(c('gray', '  Para ponerla:   agoda programar ... --instalar'));
+    log(c('gray', '  O a mano:       crontab -e   y pegá la línea de arriba'));
+    log(c('gray', `  El registro queda en ${path.join(raiz, registro)}`));
+    if (process.platform === 'darwin') {
+      log(c('yellow', '  ! En macOS, cron necesita permiso de Disco Completo para tu terminal'));
+      log(c('gray', '    (Ajustes → Privacidad y seguridad → Acceso total al disco).'));
+    }
+    return;
+  }
+
+  const actual = leerCrontab();
+  const nuevo = [sinBloque(actual), MARCA_INICIO, cron, MARCA_FIN].filter(Boolean).join('\n');
+  escribirCrontab(nuevo);
+  log(c('green', '  Instalada en el crontab.'));
+  log(c('gray', `  Verificala con:  crontab -l`));
+  log(c('gray', `  Sacala con:      agoda programar --quitar`));
+  log(c('gray', `  El registro queda en ${path.join(raiz, registro)}`));
 }

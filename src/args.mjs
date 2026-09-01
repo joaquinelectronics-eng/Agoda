@@ -4,7 +4,7 @@ import { c } from './util.mjs';
 
 const BOOLEANOS = new Set([
   'cancelacion-gratis', 'todos', 'headful', 'json', 'ayuda', 'help', 'sin-guardar',
-  'solo-bajaron', 'silencioso', 'version',
+  'solo-bajaron', 'silencioso', 'version', 'instalar', 'quitar',
 ]);
 
 const ALIAS = {
@@ -70,6 +70,7 @@ ${B('COMANDOS')}
   ${B('reporte')}               Genera un HTML filtrable con todo lo guardado.
   ${B('buscas')}                Lista las busquedas que venis siguiendo.
   ${B('destinos')} <texto>      Resuelve el id de ciudad de Agoda.
+  ${B('programar')} <destino>   Deja el seguimiento corriendo solo, hora a hora.
 
 ${B('BUSQUEDA')}
   --noche <f>          Fecha de entrada: hoy (por defecto), manana, +3, viernes, 05/09, 2026-09-05
@@ -110,6 +111,16 @@ ${B('SEGUIMIENTO')}   ${G('(comando seguir)')}
   --avisar-bajo <n>    Avisar si algo queda por debajo de este precio
   --avisar-con <cmd>   Comando a ejecutar en cada aviso (recibe $AGODA_NOMBRE, $AGODA_PRECIO, $AGODA_URL...)
 
+${B('AUTOMATICO')}   ${G('(comando programar: corre aunque cierres la terminal)')}
+  --cada <min>         Cada cuanto muestrear; tiene que dividir a 60 (60)
+  --desde-hora <h>     Desde que hora arranca (12)
+  --hasta-hora <h>     Hasta que hora (23)
+  --html <archivo>     Que reporte regenerar en cada corrida (reportes/hoy.html)
+  --registro <archivo> Donde dejar el log (data/agoda.log)
+  --instalar           Ponerla en el crontab (si no, solo la muestra)
+  --quitar             Sacarla del crontab
+  ${G('Los filtros y opciones de busqueda que pongas se arrastran a la tarea.')}
+
 ${B('EJEMPLOS')}
   ${G('# deptos en Buenos Aires para esta noche, hasta 60 mil, con nota 8+')}
   agoda buscar "Buenos Aires" --tipo depto --max 60000 --min-nota 8 --min-reviews 20
@@ -125,6 +136,9 @@ ${B('EJEMPLOS')}
 
   ${G('# reporte HTML para abrir en el navegador')}
   agoda reporte --html reportes/hoy.html
+
+  ${G('# que se actualice solo, cada hora, de 12 a 23')}
+  agoda programar "Buenos Aires" --tipo depto,casa --cada 60 --instalar
 
 ${B('VARIABLES')}
   AGODA_DB       ruta de la base (por defecto ./data/agoda.db)

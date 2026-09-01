@@ -69,6 +69,7 @@ agoda reporte --html reportes/hoy.html
 | `agoda ver` | Muestra la última muestra guardada, sin tocar internet (filtrar es gratis) |
 | `agoda bajadas` | Ranking de cuánto bajó cada precio desde que lo seguís |
 | `agoda seguir <destino>` | Toma muestras cada X minutos y avisa cuando algo baja |
+| `agoda programar <destino>` | Deja el seguimiento corriendo solo, hora a hora |
 | `agoda historial <id\|nombre>` | La curva de precio de un alojamiento |
 | `agoda reporte` | Genera un HTML filtrable y ordenable |
 | `agoda buscas` | Lista las búsquedas que venís siguiendo |
@@ -131,6 +132,40 @@ Dos que vale la pena conocer:
   bayesiana), así un 9.9 con 2 reviews no le gana a un 8.9 con 400.
 - **`valor`** es cuánta nota ajustada te dan por unidad de precio. Es el orden
   para "lo mejor que puedo conseguir por lo que quiero gastar".
+
+## Que corra solo, hora a hora
+
+Los precios bajan a medida que se acerca la noche, así que lo que sirve es
+muestrear seguido sin tener que acordarse.
+
+```bash
+agoda programar "Buenos Aires" --tipo depto,casa --cada 60 --desde-hora 12 --hasta-hora 23
+```
+
+Te muestra la línea de crontab lista; con `--instalar` la pone sola, y con
+`--quitar` la saca. En Windows te da el comando de `schtasks`. Los filtros y
+opciones que pases se arrastran a la tarea.
+
+Cada corrida guarda una muestra **y regenera el HTML**, así que `reportes/hoy.html`
+siempre está al día. Deja una línea por corrida en `data/agoda.log`:
+
+```
+2026-09-01T13:32:11.938Z Buenos Aires 2026-09-01 · 104 alojamientos · 0 bajaron · /home/user/Agoda/reportes/hoy.html
+```
+
+La línea que genera es esta, y podés correrla a mano para probar:
+
+```
+0 12-23 * * * /usr/bin/node bin/agoda.mjs buscar "Buenos Aires" \
+  --tipo depto,casa --paginas todas --noche hoy --silencioso --html reportes/hoy.html \
+  >> data/agoda.log 2>&1
+```
+
+`--noche hoy` se resuelve en cada corrida, así que sigue la noche en curso sin
+tocar nada. En macOS, cron necesita que le des Acceso Total al Disco a tu terminal.
+
+Si preferís no tocar el crontab, `agoda seguir --cada 60` hace lo mismo mientras
+tengas la terminal abierta.
 
 ## Seguir los precios
 
@@ -200,7 +235,7 @@ página los tildás y destildás como quieras.
   y *lista* para comparar muchos precios de una. En las fichas el precio final va
   estampado sobre la foto y el recargo oculto como chip arriba a la derecha.
 - **Los links abren la ficha de Agoda con tus fechas y tu ocupación** ya cargadas,
-  no la página genérica.
+  no la página genérica. Cada ficha trae además un botón para copiar el link.
 - **Tipo y zona se eligen de a varios.** Chips con la cantidad de cada uno, así
   que podés marcar depto + casa, o Núñez + Belgrano + Palermo + Recoleta.
 - **Precio final vs. el que muestra Agoda.** Un botón cambia entre los dos, y el
@@ -239,10 +274,21 @@ Dos cosas se rompen cuando la página vive dentro de un iframe con sandbox
 
 1. **Las fotos externas quedan bloqueadas por CSP**, sin ningún error visible.
    Se arregla con `--fotos incrustadas`.
-2. **`target="_blank"` queda bloqueado**, así que los links no hacen nada al
-   clickearlos. La página lo detecta sola: si `window.open` no abre, muestra una
-   barra abajo con la dirección lista para copiar. Ctrl+click y "abrir en pestaña
-   nueva" siguen funcionando como siempre.
+2. **Los links pueden quedar bloqueados**, según los permisos del iframe. Medido
+   con un click de verdad:
+
+   | permisos del iframe | `<a target="_blank">` | `window.open(…,'noopener')` | `window.open(…)` |
+   | --- | --- | --- | --- |
+   | `allow-scripts` | bloqueado | bloqueado | bloqueado |
+   | `+ allow-popups` | **abre** | bloqueado | abre |
+
+   O sea: **el ancla nativa es la que más lejos llega**, así que la página no
+   intercepta el click. Dos trampas que costaron un rato: `window.open` con
+   `noopener` en el tercer argumento **devuelve `null` aunque haya abierto** (por
+   especificación, corta la referencia), así que no sirve ni para detectar si
+   funcionó; y hacerle `preventDefault()` al click mata justamente el ancla que sí
+   anda. Para el caso en que el navegador bloquee todo, cada ficha tiene un botón
+   de copiar el link.
 
 El botón **Mis filtros** vuelve a la preselección con la que generaste el archivo.
 
@@ -323,5 +369,6 @@ propio, apuntá `AGODA_CHROME` a su ejecutable.
 npm test
 ```
 
-37 tests sobre el parseo (con una respuesta real de Agoda como fixture), los
-filtros, el orden, las fechas, las miniaturas, los links y el cálculo de bajadas.
+42 tests sobre el parseo (con una respuesta real de Agoda como fixture), los
+filtros, el orden, las fechas, las miniaturas, los links, el armado del cron y el
+cálculo de bajadas.

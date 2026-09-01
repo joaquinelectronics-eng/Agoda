@@ -322,6 +322,9 @@ const ESTILOS = `
   }
   .ficha:hover{transform:translateY(-3px); box-shadow:var(--sombra-alta); border-color:var(--line2)}
   .ficha:hover .abrir{color:var(--accent-ink); background:var(--accent); border-color:var(--accent)}
+  .ficha .titulo a{color:inherit; text-decoration:none}
+  .ficha .titulo a:hover{text-decoration:underline; text-underline-offset:2px}
+  .foto{display:block}
   .foto{position:relative; aspect-ratio:16/10; background:var(--surface2); overflow:hidden}
   .foto img{width:100%; height:100%; object-fit:cover; display:block}
   .foto .sinfoto{
@@ -362,9 +365,19 @@ const ESTILOS = `
   .pie{margin-top:auto; padding-top:9px; display:flex; align-items:center; justify-content:space-between; gap:8px}
   .abrir{
     font-size:12.5px; font-weight:600; color:var(--accent); border:1px solid var(--line2);
-    border-radius:7px; padding:5px 11px; transition:background .14s, color .14s, border-color .14s;
+    border-radius:7px; padding:5px 11px; text-decoration:none;
+    transition:background .14s, color .14s, border-color .14s;
   }
   .curvita{opacity:.85}
+  .acciones{display:inline-flex; align-items:center; gap:6px}
+  .copiar{
+    background:transparent; border:1px solid var(--line2); color:var(--muted); border-radius:7px;
+    padding:4px 8px; font:inherit; font-size:13px; line-height:1.1; cursor:pointer;
+    transition:color .14s, border-color .14s;
+  }
+  .copiar:hover{color:var(--accent); border-color:var(--accent)}
+  .copiar.copiado{color:var(--good); border-color:var(--good)}
+  td .copiar{padding:1px 6px; font-size:11px; margin-left:7px; vertical-align:1px}
 
   /* ---- lista ---- */
   .marco{overflow-x:auto; background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--sombra)}
@@ -393,15 +406,6 @@ const ESTILOS = `
   .nada{padding:52px 20px; text-align:center; color:var(--muted)}
   footer{color:var(--muted); font-size:12px; padding:22px 2px 44px; line-height:1.75; max-width:80ch}
 
-  /* barra de rescate cuando el navegador no deja abrir pestanas */
-  .rescate{
-    position:fixed; left:50%; transform:translateX(-50%); bottom:20px; z-index:50;
-    background:var(--surface); border:1px solid var(--line2); border-radius:11px; padding:12px 14px;
-    box-shadow:var(--sombra-alta); display:flex; flex-direction:column; gap:8px; max-width:min(620px, 92vw);
-  }
-  .rescate p{margin:0; font-size:12.5px; color:var(--muted)}
-  .rescate .linea{display:flex; gap:8px; align-items:center}
-  .rescate input{flex:1; min-width:0; font-family:'IBM Plex Mono', ui-monospace, monospace; font-size:12px}
   @media (max-width:640px){ .cont{padding:0 13px} h1{font-size:19px} input[type=search]{width:100%} .rejilla{grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:14px} }
 </style>`;
 
@@ -619,23 +623,31 @@ function ficha(d) {
   var sinImp = (estado.conImpuestos && d.base != null && d.base !== d.final)
     ? '<span class="sinImp">Agoda publica ' + fmt(d.base) + '</span>' : '';
 
-  return '<a class="ficha" href="' + esc(d.url) + '" target="_blank" rel="noopener noreferrer" data-externo="1">' +
-    '<span class="foto">' + foto +
+  // Ojo: link nativo, sin interceptar el click. Es lo unico que abre dentro de un
+  // iframe con sandbox; window.open desde script queda bloqueado ahi.
+  var ancla = 'href="' + esc(d.url) + '" target="_blank" rel="noopener noreferrer"';
+  return '<article class="ficha">' +
+    '<a class="foto" ' + ancla + ' aria-label="Abrir ' + esc(d.nombre) + ' en Agoda">' + foto +
       '<span class="sello">' + fmt(precioDe(d)) + '<span class="moneda">' + MONEDA + '</span></span>' +
       recargo + baja +
-    '</span>' +
-    '<span class="interior">' +
-      '<h3 class="titulo">' + esc(d.nombre) + '</h3>' +
-      '<span class="subdatos">' +
+    '</a>' +
+    '<div class="interior">' +
+      '<h3 class="titulo"><a ' + ancla + '>' + esc(d.nombre) + '</a></h3>' +
+      '<div class="subdatos">' +
         (d.nota != null ? '<span class="puntaje">' + d.nota.toFixed(1) + '</span>' : '') +
         (d.reviews ? '<span>' + d.reviews + ' reviews</span>' : '<span>sin reviews</span>') +
         '<span>·</span><span>' + esc(d.tipo) + '</span>' +
         (d.zona ? '<span>·</span><span>' + esc(d.zona) + '</span>' : '') +
-      '</span>' +
-      (sinImp ? '<span class="subdatos">' + sinImp + (VER_TOTAL ? '<span>· total ' + fmt(d.total) + '</span>' : '') + '</span>' : '') +
-      '<span class="etiquetas">' + etiquetasDe(d) + '</span>' +
-      '<span class="pie">' + curva(d.hist, 72) + '<span class="abrir">Ver en Agoda ↗</span></span>' +
-    '</span></a>';
+      '</div>' +
+      (sinImp ? '<div class="subdatos">' + sinImp + (VER_TOTAL ? '<span>· total ' + fmt(d.total) + '</span>' : '') + '</div>' : '') +
+      '<div class="etiquetas">' + etiquetasDe(d) + '</div>' +
+      '<div class="pie">' + curva(d.hist, 72) +
+        '<span class="acciones">' +
+          '<a class="abrir" ' + ancla + '>Ver en Agoda ↗</a>' +
+          '<button type="button" class="copiar" data-url="' + esc(d.url) + '" title="Copiar el link" aria-label="Copiar el link">⧉</button>' +
+        '</span>' +
+      '</div>' +
+    '</div></article>';
 }
 
 function fila(d, i) {
@@ -662,7 +674,9 @@ function fila(d, i) {
     '<td class="der"><span class="n" style="font-weight:600">' + (d.nota == null ? '–' : d.nota.toFixed(1)) + '</span>' +
       (d.reviews ? '<div class="sombraTxt">' + d.reviews + '</div>' : '') + '</td>' +
     '<td style="color:var(--muted)">' + esc(d.tipo) + '</td><td>' + esc(d.zona) + '</td>' +
-    '<td><a href="' + esc(d.url) + '" target="_blank" rel="noopener noreferrer" data-externo="1">' + esc(d.nombre) + '</a>' + etiquetasDe(d) + '</td>' +
+    '<td><a href="' + esc(d.url) + '" target="_blank" rel="noopener noreferrer">' + esc(d.nombre) + '</a>' +
+      '<button type="button" class="copiar" data-url="' + esc(d.url) + '" title="Copiar el link" aria-label="Copiar el link">⧉</button>' +
+      etiquetasDe(d) + '</td>' +
   '</tr>';
 }
 
@@ -772,43 +786,44 @@ document.querySelectorAll('th[data-k]').forEach(function (th) {
 });
 
 /*
- * Abrir el link. Publicada dentro de un iframe con sandbox, target="_blank"
- * puede quedar bloqueado sin decir nada: probamos window.open y, si no sale,
- * mostramos la direccion para copiarla a mano.
+ * Los links son anclas nativas y nadie intercepta el click: dentro de un iframe
+ * con sandbox, <a target="_blank"> abre y window.open desde script no. Encima
+ * window.open(url, '_blank', 'noopener') devuelve null aunque haya abierto, asi
+ * que no sirve ni para saber si funciono.
+ * El boton de copiar queda como salida si el navegador igual bloquea la pestana.
  */
-function rescatar(url) {
-  var viejo = document.getElementById('rescate');
-  if (viejo) viejo.remove();
-  var caja = document.createElement('div');
-  caja.className = 'rescate';
-  caja.id = 'rescate';
-  caja.innerHTML = '<p>Tu navegador no dejó abrir la pestaña. Copiá la dirección:</p>' +
-    '<div class="linea"><input type="text" readonly value="' + esc(url) + '">' +
-    '<button type="button" class="destacado" id="copiar">Copiar</button>' +
-    '<button type="button" class="textual" id="cerrarRescate">cerrar</button></div>';
-  document.body.appendChild(caja);
-  var campo = caja.querySelector('input');
-  campo.focus(); campo.select();
-  caja.querySelector('#copiar').addEventListener('click', function () {
-    campo.select();
-    var listo = false;
-    try { listo = document.execCommand('copy'); } catch (e) {}
-    if (!listo && navigator.clipboard) { navigator.clipboard.writeText(url).catch(function () {}); }
-    this.textContent = 'Copiado';
-  });
-  caja.querySelector('#cerrarRescate').addEventListener('click', function () { caja.remove(); });
+function copiarAlPortapapeles(texto) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(texto).then(function () { return true; }).catch(function () { return viejoCopiar(texto); });
+  }
+  return Promise.resolve(viejoCopiar(texto));
+}
+function viejoCopiar(texto) {
+  var campo = document.createElement('textarea');
+  campo.value = texto;
+  campo.setAttribute('readonly', '');
+  campo.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+  document.body.appendChild(campo);
+  campo.select();
+  var listo = false;
+  try { listo = document.execCommand('copy'); } catch (e) { listo = false; }
+  campo.remove();
+  return listo;
 }
 
 document.addEventListener('click', function (ev) {
-  var a = ev.target.closest ? ev.target.closest('a[data-externo]') : null;
-  if (!a) return;
-  if (ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return; // que siga andando ctrl+click
-  var url = a.getAttribute('href');
-  if (!url) return;
+  var boton = ev.target.closest ? ev.target.closest('.copiar') : null;
+  if (!boton) return;
   ev.preventDefault();
-  var v = null;
-  try { v = window.open(url, '_blank', 'noopener'); } catch (e) { v = null; }
-  if (!v) rescatar(url);
+  ev.stopPropagation();
+  var url = boton.dataset.url;
+  copiarAlPortapapeles(url).then(function (listo) {
+    var antes = boton.textContent;
+    boton.textContent = listo ? '✓' : '✕';
+    boton.classList.toggle('copiado', listo);
+    setTimeout(function () { boton.textContent = antes; boton.classList.remove('copiado'); }, 1400);
+    if (!listo) window.prompt('Copiá el link a mano:', url);
+  });
 });
 
 sincronizar();

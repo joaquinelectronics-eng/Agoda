@@ -9,6 +9,9 @@ import { abrirNavegador } from './browser.mjs';
 import { construirUrl, leerUrl, ajustarUrl, resolverDestino, scrapear } from './agoda.mjs';
 import { filtrar, enriquecer, ordenar, parsearCoords, idsDeTipo } from './filtros.mjs';
 import { compararConDiaAnterior, indicePorPropiedad } from './comparar.mjs';
+import { analizarHorarios, nochesDelPerfil } from './horarios.mjs';
+import { existsSync, readFileSync } from 'node:fs';
+import { tomarCerrojo } from './cerrojo.mjs';
 import * as OUT from './salida.mjs';
 import { miniatura, incrustar, avisoProxy } from './imagenes.mjs';
 import {
@@ -163,6 +166,20 @@ function resumen(filas, moneda) {
 // --- buscar -----------------------------------------------------------------
 
 export async function cmdBuscar(db, op, pos) {
+  // En modo programado, si la corrida anterior sigue viva nos vamos sin hacer nada.
+  const cerrojo = op.silencioso ? tomarCerrojo(op.cerrojo ?? 'data/agoda.lock') : { tomado: true, soltar: () => {} };
+  if (!cerrojo.tomado) {
+    log(`${new Date().toISOString()} salteada: ya hay una corrida en curso (pid ${cerrojo.duenio.pid}, hace ${cerrojo.edadMin.toFixed(0)} min)`);
+    return;
+  }
+  try {
+    await buscarYGuardar(db, op, pos);
+  } finally {
+    cerrojo.soltar();
+  }
+}
+
+async function buscarYGuardar(db, op, pos) {
   const { page, cerrar } = await abrirNavegador({ headful: op.headful === true });
   let ctx, datos;
   try {
@@ -620,6 +637,148 @@ function elegirBusqueda(db, op, pos) {
   }
   if (!cand.length) throw new Error('Ninguna busqueda guardada coincide con eso. Mirá "agoda buscas".');
   return cand[0];
+}
+
+// --- a que hora conviene reservar --------------------------------------------
+
+export async function cmdHorarios(db, op, pos) {
+  const busqueda = elegirBusqueda(db, op, pos);
+
+  // Si filtraron (por ejemplo solo deptos), analizamos solo esas propiedades.
+  let propiedades = null;
+  const fo = opcionesFiltro(op);
+  const hayFiltro = op.tipo || op.zona || op['sin-zona'] || op.max || op['min-nota'] || op.cerca;
+  if (hayFiltro) {
+    const snap = DB.ultimoSnapshot(db, busqueda.id);
+    if (snap) propiedades = new Set(filtrar(DB.filasSnapshot(db, snap.id), fo).map((f) => f.property_id));
+  }
+
+  const minSeries = num(op['min-muestras'], 5);
+  const r = analizarHorarios(db, busqueda, { noches: num(op.noches_atras ?? op.dias, 30), propiedades, minSeriesPorHora: minSeries });
+
+  if (!r.horas.length) {
+    throw new Error('No hay suficientes muestras guardadas todavia. Dejalo corriendo con "agoda programar".');
+  }
+  if (op.json) { log(JSON.stringify(r, null, 2)); return; }
+
+  encabezado(busqueda);
+  log(c('gray', `${r.nochesAnalizadas} noches · ${r.series} series (alojamiento en una noche) · ${r.observaciones} observaciones${propiedades ? ` · solo ${propiedades.size} alojamientos que pasan tus filtros` : ''}`));
+  log('');
+  log(OUT.tablaHorarios(r.horas, { minSeries, mejor: r.mejor }));
+  log('');
+
+  if (r.mejor) {
+    const hh = `${String(r.mejor.hora).padStart(2, '0')}:00`;
+    if (r.mejor.indicePct < -1) {
+      log(`  ${c('bold', c('green', `La mejor hora suele ser a las ${hh}`))}: ${fmtPct(r.mejor.indicePct)} respecto de lo que vale el resto del dia.`);
+    } else {
+      log(`  ${c('bold', `No se ve una hora claramente mejor`)}: la mas baja es ${hh} y apenas ${fmtPct(r.mejor.indicePct)}.`);
+    }
+    if (r.peor && r.peor.indicePct > 1) {
+      log(c('gray', `  La peor suele ser a las ${String(r.peor.hora).padStart(2, '0')}:00 (${fmtPct(r.peor.indicePct)}).`));
+    }
+  }
+
+  const color = { nada: 'red', poco: 'yellow', medio: 'yellow', bien: 'green' }[r.aviso.nivel];
+  log(c(color, `  ${r.aviso.nivel === 'bien' ? '' : '! '}${r.aviso.texto}`));
+  log(c('gray', '  "vs el dia" compara cada alojamiento consigo mismo esa noche, asi que no lo desvian los caros.'));
+}
+
+// --- salud de la automatizacion ----------------------------------------------
+
+export async function cmdEstado(db, op, pos) {
+  log('');
+  log(c('bold', '  Tarea programada'));
+  const cron = estadoCron();
+  log(`    ${cron.icono} ${cron.texto}`);
+  if (cron.linea) log(c('gray', `       ${recortar(cron.linea, 110)}`));
+
+  const registro = op.registro ?? 'data/agoda.log';
+  log('');
+  log(c('bold', `  Registro (${registro})`));
+  for (const l of estadoRegistro(registro)) log(`    ${l}`);
+
+  const busqueda = (() => { try { return elegirBusqueda(db, op, pos); } catch { return null; } })();
+  if (!busqueda) { log(c('gray', '\n  Todavia no hay busquedas guardadas.')); return; }
+
+  log('');
+  log(c('bold', '  Muestras guardadas'));
+  const noches = nochesDelPerfil(db, busqueda, { noches: 14 })
+    .map((n) => ({ noche: n, snaps: DB.listarSnapshots(db, n.id, 999) }))
+    .filter((x) => x.snaps.length);
+
+  if (!noches.length) { log(c('gray', '    ninguna todavia')); return; }
+
+  for (const { noche, snaps } of noches.slice(0, 7)) {
+    const horas = [...new Set(snaps.map((s) => new Date(s.tomado).getHours()))].sort((a, b) => a - b);
+    log(`    ${noche.check_in}  ${String(snaps.length).padStart(3)} muestras  ${c('gray', franjaHoraria(horas))}`);
+  }
+
+  const ultima = noches[0].snaps[0];
+  const horasDesde = (Date.now() - new Date(ultima.tomado).getTime()) / 3600_000;
+  log('');
+  if (horasDesde > 3) {
+    log(c('yellow', `  ! La ultima muestra es de hace ${horasDesde.toFixed(1)} h. Si esperabas una por hora, algo no esta corriendo.`));
+  } else {
+    log(c('green', `  Ultima muestra hace ${horasDesde < 1 ? Math.round(horasDesde * 60) + ' min' : horasDesde.toFixed(1) + ' h'}.`));
+  }
+
+  const huecos = huecosEntreMuestras(noches[0].snaps);
+  if (huecos.maximo != null) {
+    log(c('gray', `  Hoy: ${noches[0].snaps.length} muestras, hueco mas largo ${huecos.maximo.toFixed(1)} h, tipico ${huecos.mediano.toFixed(1)} h.`));
+  }
+}
+
+/** Dibuja que horas del dia estan cubiertas: una barra de 24 casilleros. */
+function franjaHoraria(horas) {
+  const set = new Set(horas);
+  let s = '';
+  for (let h = 0; h < 24; h++) s += set.has(h) ? '▪' : '·';
+  return `${s}  ${String(Math.min(...horas)).padStart(2, '0')}-${String(Math.max(...horas)).padStart(2, '0')}h`;
+}
+
+function huecosEntreMuestras(snaps) {
+  const t = snaps.map((s) => new Date(s.tomado).getTime()).sort((a, b) => a - b);
+  if (t.length < 2) return { maximo: null, mediano: null };
+  const dif = [];
+  for (let i = 1; i < t.length; i++) dif.push((t[i] - t[i - 1]) / 3600_000);
+  dif.sort((a, b) => a - b);
+  return { maximo: dif[dif.length - 1], mediano: dif[Math.floor(dif.length / 2)] };
+}
+
+function estadoCron() {
+  if (process.platform === 'win32') {
+    return { icono: '?', texto: 'En Windows revisalo con:  schtasks /query /tn "agoda-tracker"' };
+  }
+  let texto;
+  try {
+    texto = execFileSync('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  } catch {
+    return { icono: c('yellow', '!'), texto: 'No pude leer el crontab (o no hay ninguno). Instalala con: agoda programar ... --instalar' };
+  }
+  const lineas = texto.split('\n');
+  const i = lineas.findIndex((l) => l.trim() === MARCA_INICIO);
+  if (i < 0) {
+    return { icono: c('yellow', '!'), texto: 'No esta instalada. Ponela con: agoda programar ... --instalar' };
+  }
+  const linea = lineas.slice(i + 1).find((l) => l.trim() && !l.trim().startsWith('#'));
+  return { icono: c('green', '✓'), texto: 'Instalada en el crontab.', linea };
+}
+
+function estadoRegistro(ruta) {
+  if (!existsSync(ruta)) {
+    return [c('gray', 'todavia no existe (se crea en la primera corrida programada)')];
+  }
+  const lineas = readFileSync(ruta, 'utf8').split('\n').filter((l) => l.trim());
+  if (!lineas.length) return [c('gray', 'vacio')];
+
+  const corridas = lineas.filter((l) => /^\d{4}-\d{2}-\d{2}T/.test(l));
+  const errores = lineas.filter((l) => /error|Error|ERR_|Cannot|no encontr/i.test(l));
+  const salida = [`${corridas.length} corridas registradas`];
+  if (corridas.length) salida.push(c('gray', `ultima: ${recortar(corridas[corridas.length - 1], 100)}`));
+  salida.push(errores.length ? c('red', `${errores.length} lineas con errores; la ultima:`) : c('green', 'sin errores'));
+  if (errores.length) salida.push(c('gray', `  ${recortar(errores[errores.length - 1], 100)}`));
+  return salida;
 }
 
 // --- comparar contra la noche anterior ---------------------------------------

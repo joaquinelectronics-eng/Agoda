@@ -127,6 +127,42 @@ export function tablaComparacion(filas, { moneda = '' } = {}) {
   ]) + (moneda ? `\n  ${c('gray', `precios por noche en ${moneda}`)}` : '');
 }
 
+/**
+ * Tabla de horarios con una barra centrada en cero: a la izquierda las horas mas
+ * baratas que lo tipico del dia, a la derecha las mas caras.
+ */
+export function tablaHorarios(horas, { minSeries = 5, mejor = null } = {}) {
+  const escala = Math.max(6, ...horas.map((h) => Math.abs(h.indicePct)));
+  const ANCHO = 18;
+
+  const barra = (pct) => {
+    const n = Math.max(1, Math.round((Math.abs(pct) / escala) * ANCHO));
+    if (pct < -0.5) return ' '.repeat(ANCHO - n) + c('green', '█'.repeat(n)) + '│' + ' '.repeat(ANCHO);
+    if (pct > 0.5) return ' '.repeat(ANCHO) + '│' + c('red', '█'.repeat(n)) + ' '.repeat(ANCHO - n);
+    return ' '.repeat(ANCHO) + c('gray', '│') + ' '.repeat(ANCHO);
+  };
+
+  const datos = horas.map((h) => ({
+    hora: `${String(h.hora).padStart(2, '0')}:00`,
+    indice: h.series < minSeries ? c('gray', 'pocas') : `${h.indicePct > 0 ? '+' : ''}${h.indicePct.toFixed(1)}%`,
+    grafico: barra(h.series < minSeries ? 0 : h.indicePct),
+    minimo: h.vecesMinimo || '',
+    series: h.series,
+    noches: h.noches,
+    marca: mejor && h.hora === mejor.hora ? c('green', '← mas barata') : '',
+  }));
+
+  return tabla(datos, [
+    { key: 'hora', title: 'hora' },
+    { key: 'indice', title: 'vs el dia', align: 'right' },
+    { key: 'grafico', title: `mas barato ${' '.repeat(6)}│${' '.repeat(6)} mas caro` },
+    { key: 'minimo', title: 'fue el min', align: 'right', color: 'cyan' },
+    { key: 'series', title: 'muestras', align: 'right', color: 'gray' },
+    { key: 'noches', title: 'noches', align: 'right', color: 'gray' },
+    { key: 'marca', title: '' },
+  ]);
+}
+
 export function tablaHistorial(puntos, { moneda = '' } = {}) {
   const datos = puntos.map((p, i) => {
     const prev = puntos[i - 1]?.por_noche;

@@ -24,6 +24,8 @@ const COMANDOS = {
   destinos: cmd.cmdDestinos, destinations: cmd.cmdDestinos,
   programar: cmd.cmdProgramar, schedule: cmd.cmdProgramar,
   comparar: cmd.cmdComparar, compare: cmd.cmdComparar,
+  horarios: cmd.cmdHorarios, hours: cmd.cmdHorarios,
+  estado: cmd.cmdEstado, status: cmd.cmdEstado,
 };
 
 const { comando, pos, op } = parsear(process.argv.slice(2));

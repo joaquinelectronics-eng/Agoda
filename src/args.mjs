@@ -72,6 +72,8 @@ ${B('COMANDOS')}
   ${B('buscas')}                Lista las busquedas que venis siguiendo.
   ${B('destinos')} <texto>      Resuelve el id de ciudad de Agoda.
   ${B('programar')} <destino>   Deja el seguimiento corriendo solo, hora a hora.
+  ${B('horarios')}              A que hora del dia suele convenir reservar.
+  ${B('estado')}                Si la automatizacion esta corriendo y con que huecos.
 
 ${B('BUSQUEDA')}
   --noche <f>          Fecha de entrada: hoy (por defecto), manana, +3, viernes, 05/09, 2026-09-05
@@ -130,6 +132,11 @@ ${B('AUTOMATICO')}   ${G('(comando programar: corre aunque cierres la terminal)'
   --quitar             Sacarla del crontab
   ${G('Los filtros y opciones de busqueda que pongas se arrastran a la tarea.')}
 
+${B('HORARIOS')}   ${G('(comando horarios)')}
+  --dias <n>           Cuantas noches para atras analizar (30)
+  --min-muestras <n>   Muestras minimas para opinar de una hora (5)
+  ${G('Acepta los filtros: podes preguntar solo por deptos, o solo por una zona.')}
+
 ${B('EJEMPLOS')}
   ${G('# deptos en Buenos Aires para esta noche, hasta 60 mil, con nota 8+')}
   agoda buscar "Buenos Aires" --tipo depto --max 60000 --min-nota 8 --min-reviews 20
@@ -145,6 +152,12 @@ ${B('EJEMPLOS')}
 
   ${G('# esta noche a las 19 contra anoche a las 19')}
   agoda comparar --hora 19
+
+  ${G('# a que hora conviene reservar deptos, segun lo que venis midiendo')}
+  agoda horarios --tipo depto,casa
+
+  ${G('# la automatizacion, esta corriendo?')}
+  agoda estado
 
   ${G('# reporte HTML para abrir en el navegador')}
   agoda reporte --html reportes/hoy.html

@@ -71,6 +71,8 @@ agoda reporte --html reportes/hoy.html
 | `agoda seguir <destino>` | Toma muestras cada X minutos y avisa cuando algo baja |
 | `agoda programar <destino>` | Deja el seguimiento corriendo solo, hora a hora |
 | `agoda comparar` | Hoy contra la noche anterior, a la misma hora del día |
+| `agoda horarios` | A qué hora del día suele convenir reservar |
+| `agoda estado` | Si la automatización está corriendo y con qué huecos |
 | `agoda historial <id\|nombre>` | La curva de precio de un alojamiento |
 | `agoda reporte` | Genera un HTML filtrable y ordenable |
 | `agoda buscas` | Lista las búsquedas que venís siguiendo |
@@ -168,6 +170,43 @@ tocar nada. En macOS, cron necesita que le des Acceso Total al Disco a tu termin
 Si preferís no tocar el crontab, `agoda seguir --cada 60` hace lo mismo mientras
 tengas la terminal abierta.
 
+### ¿Está corriendo?
+
+```bash
+agoda estado
+```
+
+```
+  Tarea programada
+    ✓ Instalada en el crontab.
+
+  Registro (data/agoda.log)
+    37 corridas registradas
+    sin errores
+
+  Muestras guardadas
+    2026-09-01   12 muestras  ············▪▪▪▪▪▪▪▪▪▪▪▪  12-23h
+    2026-08-31   12 muestras  ············▪▪▪▪▪▪▪▪▪▪▪▪  12-23h
+
+  Ultima muestra hace 24 min.
+  Hoy: 12 muestras, hueco mas largo 1.0 h, tipico 1.0 h.
+```
+
+La barra de 24 casilleros muestra qué horas del día quedaron cubiertas, que es
+justo lo que necesita la comparación hora contra hora. Si el hueco más largo es
+mucho mayor que el intervalo que pusiste, algo se está salteando.
+
+### Corridas que se pisan
+
+Si una corrida se cuelga o tarda más que el intervalo, la siguiente **se va sin
+hacer nada** en vez de abrir un segundo navegador y escribir en la base al mismo
+tiempo (`data/agoda.lock`). Un cerrojo de un proceso muerto, o de más de 55
+minutos, se pisa solo, así que un cuelgue no traba todo para siempre.
+
+Medido acá: una corrida completa (`--paginas todas`, 786 alojamientos, más
+regenerar el HTML) tarda **43 segundos**, no deja procesos de Chromium colgados, y
+la base crece del orden de 800 KB por unos pocos miles de precios.
+
 ## Comparar contra la noche anterior
 
 Los precios siguen una curva a lo largo del día, así que comparar el de hoy a las
@@ -227,6 +266,38 @@ columna, y hay filtro *solo más baratos que anoche* y orden por esa diferencia.
 
 Para que esto tenga datos hace falta haber muestreado **las dos noches a la misma
 hora**, que es exactamente lo que hace `agoda programar`.
+
+## A qué hora conviene reservar
+
+```bash
+agoda horarios --tipo depto,casa
+```
+
+```
+  hora   vs el dia  mas barato       │       mas caro      fue el min  muestras  noches
+  ─────  ─────────  ─────────────────────────────────────  ──────────  ────────  ──────
+  12:00      +3.1%                   │███                          12       340       9
+  17:00      -1.4%                ██ │                             41       338       9
+  21:00      -7.8%        ██████████ │                            186       341       9  ← mas barata
+
+  La mejor hora suele ser a las 21:00: -8% respecto de lo que vale el resto del dia.
+```
+
+**Cómo se calcula, porque importa.** Promediar precios por hora daría cualquier
+cosa: un depto caro muestreado de noche ensuciaría esa hora. Acá cada alojamiento
+se compara **consigo mismo**: para cada noche se toma su precio típico (la mediana
+de esa noche) y cada observación se mide como porcentaje de eso. Así "las 21:00
+están -8%" significa que a esa hora un alojamiento cualquiera suele estar un 8%
+por debajo de lo que vale el resto del día, sin que lo desvíen los caros.
+
+La columna *fue el min* cuenta en cuántas series (un alojamiento en una noche) el
+precio más bajo cayó a esa hora.
+
+**Con pocos datos no opina.** Con menos de 2 noches te dice que no dice nada; con
+menos de 4, que lo tomes como indicio; y no saca conclusiones de una hora con
+menos de 5 muestras (`--min-muestras`), para que una casualidad de las 3 AM no
+gane. Acepta los mismos filtros, así que podés preguntar solo por deptos, o solo
+por una zona.
 
 ## Seguir los precios
 
@@ -405,6 +476,8 @@ src/parse.mjs     JSON de Agoda -> filas planas
 src/db.mjs        SQLite: búsquedas, muestras, precios, evolución
 src/filtros.mjs   filtros, nota ajustada, orden por valor
 src/comparar.mjs  cruce de una noche contra otra a la misma hora
+src/horarios.mjs  a que hora del dia conviene reservar
+src/cerrojo.mjs   evita que dos corridas programadas se pisen
 src/imagenes.mjs  miniaturas y fotos incrustadas
 src/salida.mjs    tabla de consola, CSV y reporte HTML
 src/comandos.mjs  los comandos del CLI
@@ -434,6 +507,6 @@ propio, apuntá `AGODA_CHROME` a su ejecutable.
 npm test
 ```
 
-54 tests sobre el parseo (con una respuesta real de Agoda como fixture), los
+65 tests sobre el parseo (con una respuesta real de Agoda como fixture), los
 filtros, el orden, las fechas, las miniaturas, los links, el armado del cron, el
 cruce entre noches a la misma hora y el cálculo de bajadas.

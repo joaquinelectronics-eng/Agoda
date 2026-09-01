@@ -87,6 +87,8 @@ export function abrirDb(ruta = rutaDb()) {
   fs.mkdirSync(path.dirname(ruta), { recursive: true });
   const db = new DatabaseSync(ruta);
   db.exec('PRAGMA journal_mode = WAL;');
+  // Si dos corridas se solapan, que la segunda espere en vez de fallar al toque.
+  db.exec('PRAGMA busy_timeout = 15000;');
   db.exec('PRAGMA foreign_keys = ON;');
   db.exec(ESQUEMA);
   return db;

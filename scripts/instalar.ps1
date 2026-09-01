@@ -4,6 +4,7 @@
 #   powershell -ExecutionPolicy Bypass -File scripts\instalar.ps1
 
 $ErrorActionPreference = 'Stop'
+Write-Host "Instalando el seguimiento de precios de Agoda..." -ForegroundColor Cyan
 $raiz = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $raiz
 
@@ -22,11 +23,22 @@ if ([int]$version -lt 22) {
   exit 1
 }
 
-Paso "1/5" "Dependencias"
+Paso "1/5" "Dependencias (esto tarda unos minutos)"
 npm install --silent
-$hayNavegador = $true
-try { & node -e "require('playwright-core').chromium.executablePath()" 2>$null } catch { $hayNavegador = $false }
-if (-not $hayNavegador) { npx --yes playwright install chromium }
+if ($LASTEXITCODE -ne 0) { Write-Host "Fallo npm install" -ForegroundColor Red; exit 1 }
+
+# Ojo: en PowerShell un comando externo que falla NO lanza excepcion, asi que
+# un try/catch aca daria siempre por bueno el navegador y nunca lo bajaria.
+# Hay que mirar el codigo de salida.
+Write-Host "    Buscando el navegador..."
+& node -e "require('playwright-core').chromium.executablePath()" 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "    No esta; bajandolo (~150 MB, puede tardar varios minutos)"
+  npx --yes playwright install chromium
+  if ($LASTEXITCODE -ne 0) { Write-Host "Fallo la descarga del navegador" -ForegroundColor Red; exit 1 }
+} else {
+  Write-Host "    Ya estaba"
+}
 
 Paso "2/5" "Recuperando las muestras ya guardadas"
 & node bin/agoda.mjs sincronizar

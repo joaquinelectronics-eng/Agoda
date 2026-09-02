@@ -17,6 +17,17 @@ on:
   schedule:
     # De 11:00 a 23:45 hora de Buenos Aires (UTC-3) => 14:00 a 02:45 UTC.
     - cron: '*/15 14-23,0-2 * * *'
+
+  # Que entre una muestra nueva alcanza para rehacer la pagina. Sirve de red
+  # cuando el cron de GitHub no dispara, que es bastante seguido.
+  #
+  # No hay bucle: los push que hace este mismo workflow van con GITHUB_TOKEN, y
+  # GitHub no dispara workflows con los push hechos con ese token. Solo lo
+  # despiertan los que vienen de afuera.
+  push:
+    paths:
+      - 'datos/**'
+
   workflow_dispatch:
 
 # Que dos corridas no se pisen: si una tarda mas de 15 minutos, la siguiente

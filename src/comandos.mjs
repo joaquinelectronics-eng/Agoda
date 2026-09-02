@@ -582,16 +582,25 @@ function armarVista(db, busqueda, op) {
   };
 }
 
-/** --pestanas 2026-09-04,15 -> las busquedas que van como solapas extra. */
-function pestanasPedidas(db, op) {
+/**
+ * --pestanas 2026-09-04,15 -> las busquedas que van como solapas extra.
+ *
+ * Una solapa que todavia no tiene datos se avisa y se saltea, no revienta: esto
+ * corre cada hora sin nadie mirando, y para cuando se arma el HTML la muestra de
+ * la noche principal ya esta guardada. Tirar aca solo perderia la pagina.
+ */
+export function pestanasPedidas(db, op) {
   if (!op.pestanas) return [];
-  return String(op.pestanas).split(',').map((x) => x.trim()).filter(Boolean).map((ref) => {
+  const pedidas = String(op.pestanas).split(',').map((x) => x.trim()).filter(Boolean);
+  const salida = [];
+  for (const ref of pedidas) {
     const b = /^\d+$/.test(ref)
       ? DB.buscarBusqueda(db, { id: Number(ref) })
       : DB.listarBusquedas(db).find((x) => x.check_in === parseFecha(ref));
-    if (!b) throw new Error(`No tengo guardada ninguna busqueda para "${ref}". Mira "agoda buscas".`);
-    return b;
-  });
+    if (b) salida.push(b);
+    else warn(`Sin solapa para "${ref}": todavia no hay ninguna busqueda guardada con esa noche.`);
+  }
+  return salida;
 }
 
 /**
@@ -988,7 +997,7 @@ const HEREDABLES = [
   'moneda', 'paginas', 'adultos', 'ninos', 'habitaciones', 'noches', 'noche', 'url',
   'tipo', 'zona', 'sin-zona', 'max', 'min', 'max-total', 'min-nota', 'min-reviews',
   'min-estrellas', 'cerca', 'radio', 'cancelacion-gratis', 'texto', 'todos',
-  'fotos', 'fotos-ancho', 'db',
+  'fotos', 'fotos-ancho', 'db', 'pestanas', 'serie',
 ];
 
 function raizProyecto() {

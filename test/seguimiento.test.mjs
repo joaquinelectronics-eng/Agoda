@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import * as DB from '../src/db.mjs';
 import { enriquecer } from '../src/filtros.mjs';
-import { compararMuestras } from '../src/comandos.mjs';
+import { compararMuestras, pestanasPedidas } from '../src/comandos.mjs';
 
 function dbTemporal() {
   const ruta = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'agoda-test-')), 'test.db');
@@ -89,4 +89,26 @@ test('las bajadas se ordenan por porcentaje, no por pesos', () => {
   const ahora = mapa([prop(1, 50), prop(2, 900)]);   // -50% vs -10% (pero -50 vs -100 en plata)
   const { bajaron } = compararMuestras(antes, ahora);
   assert.deepEqual(bajaron.map((c) => c.id), [1, 2]);
+});
+
+test('las solapas extra se saltean si esa noche todavia no tiene datos', () => {
+  const { db } = dbTemporal();
+  const base = {
+    ciudadId: 9294, ciudad: 'Buenos Aires', los: 1,
+    adultos: 2, ninos: 0, habitaciones: 1, moneda: 'USD', url: 'https://x',
+  };
+  const hoy = DB.guardarBusqueda(db, { ...base, checkIn: '2026-09-01' });
+  const viernes = DB.guardarBusqueda(db, { ...base, checkIn: '2026-09-04' });
+
+  assert.deepEqual(pestanasPedidas(db, {}).map((b) => b.id), []);
+  assert.deepEqual(pestanasPedidas(db, { pestanas: '2026-09-04' }).map((b) => b.id), [viernes.id]);
+  assert.deepEqual(pestanasPedidas(db, { pestanas: `${hoy.id}, 2026-09-04` }).map((b) => b.id),
+    [hoy.id, viernes.id], 'tambien acepta ids');
+
+  // Lo importante: esto corre cada hora sin nadie mirando. Que falte una solapa
+  // no puede tirar la corrida, porque la muestra ya se guardo y lo unico que se
+  // perderia es la pagina.
+  assert.deepEqual(pestanasPedidas(db, { pestanas: '2026-12-25' }).map((b) => b.id), []);
+  assert.deepEqual(pestanasPedidas(db, { pestanas: '2026-12-25,2026-09-04' }).map((b) => b.id),
+    [viernes.id], 'las que si estan siguen saliendo');
 });

@@ -16,19 +16,20 @@ node bin/agoda.mjs sincronizar
 
 echo "==> 3/4  Programando las tareas (11 a 23, cada hora)"
 COMUNES=(--moneda USD --tipo depto,casa --zona nunez,belgrano,palermo,recoleta
-         --cada 60 --desde-hora 11 --hasta-hora 23 --instalar)
-node bin/agoda.mjs programar "Buenos Aires" --nombre hoy "${COMUNES[@]}"
+         --serie datos --cada 60 --desde-hora 11 --hasta-hora 23 --instalar)
+# La de hoy lleva la del viernes como solapa: las dos noches en un solo archivo.
+node bin/agoda.mjs programar "Buenos Aires" --nombre hoy --pestanas 2026-09-04 "${COMUNES[@]}"
 node bin/agoda.mjs programar "Buenos Aires" --nombre viernes --noche 2026-09-04 "${COMUNES[@]}"
 
 echo "==> 4/4  Primera muestra, para verificar que anda"
 node bin/agoda.mjs buscar "Buenos Aires" --moneda USD --paginas todas --silencioso \
-  --serie datos --html reportes/hoy.html
+  --serie datos --pestanas 2026-09-04 --html reportes/hoy.html
 
 cat <<FIN
 
 Listo. De acá en más se actualiza solo, cada hora de 11 a 23.
 
-  La página:     $RAIZ/reportes/hoy.html
+  La página:     $RAIZ/reportes/hoy.html   (las dos noches, una en cada solapa)
   Cómo va:       node bin/agoda.mjs estado
   Para pararlo:  node bin/agoda.mjs programar --quitar --todo
 

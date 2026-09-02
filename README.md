@@ -52,15 +52,20 @@ Sin `npm link` corrés todo con `node bin/agoda.mjs ...`.
 powershell -ExecutionPolicy Bypass -File scripts\instalar.ps1   # Windows
 ```
 
-Instala las dependencias, recupera las muestras ya guardadas en `datos/`, deja dos
-tareas horarias en el crontab (la noche de hoy y una fecha fija) y toma la primera
+Instala las dependencias, recupera las muestras ya guardadas en `datos/`, deja el
+muestreo horario programado (la noche de hoy y una fecha fija) y toma la primera
 muestra para verificar. Después no hay que tocar nada: `reportes/hoy.html` se
-regenera solo cada hora.
+regenera solo cada hora, con **una solapa por noche en el mismo archivo**.
+
+En Windows es **una sola tarea** (`agoda`) que muestrea las dos noches una atrás de
+la otra y arma la página al final: así las dos solapas quedan en la misma hora y las
+corridas no se pisan entre ellas.
 
 Corre en tu máquina, así que **no consume nada de la nube**. Solo necesita que la
 compu esté prendida en la franja que sigas.
 
-Para pararlo: `node bin/agoda.mjs programar --quitar --todo`
+Para pararlo: `node bin/agoda.mjs programar --quitar --todo`, o en Windows
+`schtasks /delete /tn agoda /f`.
 
 **En Windows, nada de `npx`.** Windows trae la ejecución de scripts deshabilitada
 y `npx` en PowerShell es un `.ps1`, así que lo bloquea con un `UnauthorizedAccess`.
@@ -174,7 +179,7 @@ agoda programar "Buenos Aires" --tipo depto,casa --cada 60 --desde-hora 12 --has
 
 Te muestra la línea de crontab lista; con `--instalar` la pone sola, y con
 `--quitar` la saca. En Windows te da el comando de `schtasks`. Los filtros y
-opciones que pases se arrastran a la tarea.
+opciones que pases se arrastran a la tarea, `--pestanas` y `--serie` incluidos.
 
 ### Todo en un archivo
 
@@ -187,7 +192,9 @@ agoda reporte --pestanas 2026-09-04 --tipo depto,casa --html reportes/agoda.html
 Los filtros son **únicos y se comparten** entre solapas: los chips salen de la
 unión de todas, así que cambiar de noche no te resetea lo que elegiste. La banda
 de comparación y el filtro *vs la noche anterior* aparecen solo en las solapas que
-tengan con qué comparar.
+tengan con qué comparar. Una solapa que todavía no tenga datos se avisa y se saltea
+en vez de tirar la corrida: la muestra ya quedó guardada y lo único que se perdería
+es la página.
 
 Las fotos también se comparten — el mismo depto suele estar en varias noches — así
 que dos solapas no pesan el doble: en la prueba, 279 fotos únicas para 373 filas.

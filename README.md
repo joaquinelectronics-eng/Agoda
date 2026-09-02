@@ -106,6 +106,23 @@ Eso los saca de los datos, no sólo de la vista: quedan en
 `data/descartados.json`, que no se versiona porque es una preferencia tuya y el
 repo es público. Con `--con-descartados` los ves igual esa vez.
 
+### Que la máquina reporte sola
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\tarea.ps1 -Publicar
+```
+
+Agrega a la corrida de cada hora un `git pull --rebase` + `commit` + `push` de
+`datos/`. Sirve para **mirar desde afuera si la máquina está corriendo**: el
+nombre de cada archivo de `datos/<noche>/` es la hora exacta en que se tomó la
+muestra, así que la última que haya en el repo dice hasta cuándo llegó.
+
+Antes de agregar el paso hace un `git push --dry-run`. Si no hay credenciales
+guardadas te lo dice y no lo agrega, en vez de fallar a cada hora en silencio
+adentro del log.
+
+Las muestras quedan públicas, como el resto del repo.
+
 ### Que la compu se despierte sola (Windows)
 
 Si no querés tenerla prendida toda la franja:

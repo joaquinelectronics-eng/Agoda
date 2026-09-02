@@ -13,7 +13,11 @@ param(
   [string]$Noche = '2026-09-04',
   [int]$Desde = 11,
   [int]$Hasta = 23,
-  [string]$Tarea = 'agoda'
+  [string]$Tarea = 'agoda',
+  # Sube las muestras al repo despues de cada corrida. Sirve para poder mirar
+  # desde afuera si la maquina esta corriendo: el nombre de cada archivo de
+  # datos/ es la hora en que se tomo.
+  [switch]$Publicar
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,12 +30,34 @@ if (-not $node) { Write-Host "Falta Node.js." -ForegroundColor Red; exit 1 }
 # las dos solapas, asi queda todo en un archivo y de la misma hora.
 $filtros = '--moneda USD --tipo depto,casa --zona nunez,belgrano,palermo,recoleta --paginas todas --silencioso --serie datos'
 $cmd = Join-Path $raiz 'scripts\muestra.cmd'
+# Antes de agregar el paso de subir: comprobar que el push anda de verdad. Si no
+# hay credenciales guardadas fallaria a cada hora en silencio, adentro del log.
+$subir = ''
+if ($Publicar) {
+  Write-Host "Probando si puedo subir al repo..."
+  & git -C $raiz push --dry-run 2>&1 | Out-Null
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "  ! No pude: git push pide credenciales que no estan guardadas." -ForegroundColor Yellow
+    Write-Host "    Hace un 'git push' a mano una vez, entra con GitHub, y volve a correr esto."
+    Write-Host "    Sigo sin el paso de subir." -ForegroundColor Yellow
+  } else {
+    Write-Host "    si puedo" -ForegroundColor Green
+    $subir = @"
+git pull --rebase --autostash >> data\agoda.log 2>&1
+git add datos >> data\agoda.log 2>&1
+git commit -m "Muestra automatica" >> data\agoda.log 2>&1
+git push >> data\agoda.log 2>&1
+"@
+  }
+}
+
 @"
 @echo off
 cd /d "$raiz"
 set AGODA_TZ=America/Argentina/Buenos_Aires
 "$node" bin\agoda.mjs buscar "Buenos Aires" $filtros --noche $Noche >> data\agoda.log 2>&1
 "$node" bin\agoda.mjs buscar "Buenos Aires" $filtros --noche hoy --pestanas $Noche --html "reportes\hoy.html" >> data\agoda.log 2>&1
+$subir
 "@ | Set-Content -Path $cmd -Encoding ASCII
 Write-Host "Comando:  $cmd"
 

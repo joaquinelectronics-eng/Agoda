@@ -697,10 +697,11 @@ ${pestanas.length > 1 ? `<div class="solapas" role="tablist">${solapas}</div>` :
     <label class="marca"><input type="checkbox" id="fbaja"> solo los que bajaron hoy</label>
     <label class="marca" id="marcaAyer" hidden><input type="checkbox" id="fayer"> solo más baratos que la noche anterior</label>
   </div>
+
+  <div class="grupo barraDesc" id="barraDesc" hidden></div>
 </div>
 
 <div class="resumen" id="resumen"></div>
-<div class="barraDesc" id="barraDesc" hidden></div>
 <div class="rejilla" id="rejilla"></div>
 <div class="marco" id="marco" hidden><table><thead><tr id="cabecera"></tr></thead><tbody id="cuerpoTabla"></tbody></table></div>
 <div class="nada" id="nada" hidden>Ningún alojamiento coincide con estos filtros.</div>
@@ -978,7 +979,7 @@ function pintarBarraDesc() {
     (ultimoDescartado ? '<button type="button" id="dDeshacer">traer el último</button>' : '') +
     '<button type="button" id="dCopiar" title="Para que no vuelvan aunque cambies de navegador">copiar comando</button>';
   if (!guardaDeVerdad) {
-    html += '<span class="aviso">Tu navegador no guarda esto entre recargas: usá el comando.</span>';
+    html += '<span class="aviso">Acá no se guardan: si recargás, vuelven. Copiá el comando.</span>';
   }
   barra.innerHTML = html;
 
@@ -1006,6 +1007,12 @@ function tachar(id) {
   }
   guardarDescartados();
   pintar();
+
+  var cuantos = nombresDescartados().length;
+  if (!cuantos) return avisar('Vuelve a aparecer.', true);
+  avisar(guardaDeVerdad
+    ? 'Descartado. Van ' + cuantos + '.'
+    : 'Descartado (' + cuantos + '), pero este visor no guarda: si recargás, vuelven. Usá "copiar comando".');
 }
 
 function pintar() {

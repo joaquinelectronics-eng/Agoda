@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { cuando } from '../src/salida.mjs';
 import { parseFecha, addDays, distanciaKm, normalizar, sparkline, fmtPrecio } from '../src/util.mjs';
 import { leerUrl, ajustarUrl, construirUrl } from '../src/agoda.mjs';
 
@@ -117,4 +118,20 @@ test('urlConFechas no rompe con datos faltantes', () => {
   const u = new URL(urlConFechas('https://www.agoda.com/x.html', { check_in: '2026-09-01', los: 1 }));
   assert.equal(u.searchParams.get('checkIn'), '2026-09-01');
   assert.equal(u.searchParams.get('adults'), null, 'lo que no hay no se inventa');
+});
+
+test('la hora de la pagina va en 24 horas y con la zona', () => {
+  const tarde = new Date('2026-09-02T18:58:18Z');   // 15:58 en Buenos Aires
+  const previa = process.env.TZ;
+  process.env.TZ = 'America/Argentina/Buenos_Aires';
+  try {
+    const texto = cuando(tarde);
+    // El formato por defecto de es-AR sale en 12 horas y sin am/pm: "03:58" no
+    // deja saber si la muestra es de la tarde o de la madrugada.
+    assert.match(texto, /15:58/, `salio "${texto}"`);
+    assert.doesNotMatch(texto, /03:58/);
+    assert.match(texto, /ART|GMT-3/, 'la zona tiene que estar a la vista');
+  } finally {
+    if (previa === undefined) delete process.env.TZ; else process.env.TZ = previa;
+  }
 });

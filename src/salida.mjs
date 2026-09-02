@@ -26,6 +26,19 @@ const TIPO_CORTO = {
   'Posada': 'posada',
 };
 
+/**
+ * Cuando se genero la pagina. Con hora de 24 y la zona a la vista: el formato
+ * por defecto de es-AR en Node sale en 12 horas y SIN am/pm, asi que una muestra
+ * de las 15:58 se leia "03:58" y no habia forma de saber si era de la tarde o de
+ * la madrugada.
+ */
+export function cuando(fecha) {
+  return fecha.toLocaleString('es-AR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false, timeZoneName: 'short',
+  });
+}
+
 export function tipoCorto(t) {
   if (!t) return '-';
   return TIPO_CORTO[t] ?? recortar(String(t).toLowerCase(), 12);
@@ -649,7 +662,7 @@ export function reporteHtml(vistas, {
 <div class="cont">
 <header>
   <h1>${escHtml(tituloPagina)}</h1>
-  <div class="meta">datos del ${escHtml(generado.toLocaleString('es-AR'))}</div>
+  <div class="meta">datos del ${escHtml(cuando(generado))}</div>
 </header>
 
 ${pestanas.length > 1 ? `<div class="solapas" role="tablist">${solapas}</div>` : ''}

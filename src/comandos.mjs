@@ -17,6 +17,7 @@ import { exportarMuestra, importarSerie } from './serie.mjs';
 import * as OUT from './salida.mjs';
 import { miniatura, incrustar, avisoProxy } from './imagenes.mjs';
 import { crearServidor, portada } from './servidor.mjs';
+import { descartar, recuperar, leerDescartados, idsDescartados, sinDescartados, rutaDescartados } from './descartados.mjs';
 import {
   c, log, warn, parseFecha, isoDate, num, sleep, haceCuanto, horaCorta,
   fmtPrecio, fmtPct, recortar, sparkline, normalizar,
@@ -122,7 +123,7 @@ function filasConHistoria(db, busquedaId, snapshotId, { desdeHoras = null } = {}
 
 function preparar(filas, op) {
   const fo = opcionesFiltro(op);
-  const vivas = filtrar(filas, fo);
+  const vivas = op['con-descartados'] ? filtrar(filas, fo) : sinDescartados(filtrar(filas, fo));
   const ricas = enriquecer(vivas, { cerca: fo.cerca });
   return ordenar(ricas, op.orden ?? 'precio');
 }
@@ -565,7 +566,9 @@ function armarVista(db, busqueda, op) {
   // --recortar se aplican de verdad: sirve para publicar o compartir el archivo,
   // que con las fotos incrustadas se va de tamano rapido.
   const recorte = op.recortar ? opcionesFiltro(op) : { incluirNoDisponibles: op.todos === true };
-  const filas = enriquecer(filtrar(crudas, recorte), {});
+  // Los descartados no llegan ni a la pagina: la cruz es para no volver a verlos.
+  const visibles = op['con-descartados'] ? filtrar(crudas, recorte) : sinDescartados(filtrar(crudas, recorte));
+  const filas = enriquecer(visibles, {});
 
   // Contra la noche anterior a la misma hora, si esa noche esta guardada.
   const comparacion = compararConDiaAnterior(db, busqueda, {
@@ -791,6 +794,54 @@ export async function cmdHorarios(db, op, pos) {
   log(c(color, `  ${r.aviso.nivel === 'bien' ? '' : '! '}${r.aviso.texto}`));
   log(c('gray', '  Cada alojamiento se compara consigo mismo esa noche, asi que no lo desvian los caros.'));
   log(c('gray', '  "tipico" es la mediana; "promedio" es el promedio geometrico, que es el que corresponde para ratios.'));
+}
+
+// --- descartados -------------------------------------------------------------
+
+/**
+ * agoda descartar 12345 67890     -> no los muestres mas
+ * agoda descartar --quitar 12345  -> volvelos a mostrar
+ * agoda descartar                 -> cuales hay
+ */
+export async function cmdDescartar(db, op, pos) {
+  const ids = pos.map((x) => String(x).trim()).filter(Boolean);
+
+  if (op.quitar) {
+    if (!ids.length) throw new Error('Decime cual: agoda descartar --quitar 12345');
+    const sacados = recuperar(ids);
+    log(sacados.length
+      ? c('green', `  Vuelven a aparecer: ${sacados.join(', ')}`)
+      : c('gray', '  Ninguno de esos estaba descartado.'));
+    return;
+  }
+
+  if (ids.length) {
+    // El nombre es solo para que la lista se pueda leer despues.
+    const nombres = new Map();
+    for (const id of ids) {
+      const p = db.prepare('SELECT nombre FROM propiedades WHERE property_id = ?').get(Number(id));
+      if (p?.nombre) nombres.set(id, p.nombre);
+    }
+    const nuevos = descartar(ids.map((id) => ({ id, nombre: nombres.get(id) ?? null })));
+    const repetidos = ids.length - nuevos.length;
+    log(nuevos.length
+      ? c('green', `  Descartados ${nuevos.length}: no van a volver a aparecer.`)
+      : c('gray', '  Ya estaban todos descartados.'));
+    if (repetidos && nuevos.length) log(c('gray', `  (${repetidos} ya estaban)`));
+  }
+
+  const lista = leerDescartados();
+  const claves = Object.keys(lista);
+  log('');
+  if (!claves.length) {
+    log(c('gray', '  No hay ninguno descartado.'));
+    log(c('gray', '  Se descartan con la cruz de la pagina, o con: agoda descartar <id>'));
+    return;
+  }
+  log(c('bold', `  ${claves.length} descartado${claves.length > 1 ? 's' : ''}`));
+  for (const id of claves) log(`    ${String(id).padStart(9)}  ${lista[id].nombre ?? c('gray', 'sin nombre')}`);
+  log(c('gray', `\n  El archivo: ${rutaDescartados()}`));
+  log(c('gray', '  Para que vuelva alguno:  agoda descartar --quitar <id>'));
 }
 
 // --- servir la pagina --------------------------------------------------------

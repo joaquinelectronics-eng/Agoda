@@ -10,6 +10,8 @@ data/*.db-shm
 # El registro es de cada maquina: versionarlo mezclaba las corridas de una
 # con las de la otra, y encima el pull te pisaba el tuyo.
 data/*.log
+# Es una preferencia tuya, no un dato de Agoda; y el repo es publico.
+data/descartados.json
 *.html.out
 reportes/
 .DS_Store

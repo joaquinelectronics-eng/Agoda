@@ -83,6 +83,29 @@ guardando la acción **sin** comillas. Con un usuario como `acer nitro` eso deja
 la tarea intentando ejecutar `C:\Users\acer` y fallando con `0x80070002` a cada
 hora, sin escribir nada en el registro — se ve sólo en `LastTaskResult`.
 
+### Descartar los que no te gustan
+
+Cada ficha tiene una **cruz** arriba a la derecha. Al tocarla desaparece, y no
+vuelve a aparecer en las corridas siguientes.
+
+Se guarda en el navegador con una clave **fija** (`agoda-descartados`), no en la
+de los filtros, que lleva las noches adentro y cambia todos los días — guardarlos
+ahí los perdería en cada corrida, que es justo lo contrario de lo que se pide.
+Probado abriendo el archivo con `file://`, que es como lo abrís vos: el descarte
+sobrevive a recargar, o sea a que la tarea reescriba el HTML.
+
+La barra de abajo deja verlos, traer el último de vuelta, y **copiar comando**:
+
+```bash
+agoda descartar 415595 987654    # que no aparezcan mas, en cualquier navegador
+agoda descartar                  # cuales hay
+agoda descartar --quitar 415595  # que vuelva
+```
+
+Eso los saca de los datos, no sólo de la vista: quedan en
+`data/descartados.json`, que no se versiona porque es una preferencia tuya y el
+repo es público. Con `--con-descartados` los ves igual esa vez.
+
 ### Que la compu se despierte sola (Windows)
 
 Si no querés tenerla prendida toda la franja:

@@ -337,6 +337,7 @@ const ESTILOS = `
   /* ---- fichas: la foto manda ---- */
   .rejilla{display:grid; grid-template-columns:repeat(auto-fill, minmax(266px, 1fr)); gap:18px; padding-bottom:8px}
   .ficha{
+    position:relative;
     display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--line);
     border-radius:13px; overflow:hidden; text-decoration:none; color:inherit; box-shadow:var(--sombra);
     transition:transform .14s ease, box-shadow .14s ease, border-color .14s ease;
@@ -346,6 +347,34 @@ const ESTILOS = `
   .ficha .titulo a{color:inherit; text-decoration:none}
   .ficha .titulo a:hover{text-decoration:underline; text-underline-offset:2px}
   .foto{display:block}
+  /* La cruz para descartar. Chica y translucida hasta que pasas por encima:
+     esta sobre la foto, que es lo que mira el ojo. */
+  .tachar{
+    position:absolute; top:8px; right:8px; z-index:3;
+    width:26px; height:26px; border-radius:50%; cursor:pointer;
+    border:1px solid rgba(255,255,255,.45); background:rgba(0,0,0,.42); color:#fff;
+    font-size:14px; line-height:1; padding:0; opacity:0; transition:opacity .14s ease, background .14s ease;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .ficha:hover .tachar, .tachar:focus-visible{opacity:1}
+  .tachar:hover{background:#c0392b; border-color:#c0392b}
+  /* En pantalla tactil no hay hover: que se vea siempre. */
+  @media (hover:none){ .tachar{opacity:.85} }
+  tr .tachar{position:static; opacity:.5; width:22px; height:22px; font-size:12px; display:inline-flex}
+  tr:hover .tachar{opacity:1}
+  .ficha.fuera{opacity:.45; filter:grayscale(1)}
+  .barraDesc{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    margin:10px 2px 0; padding:8px 12px; border-radius:10px;
+    background:var(--surface2); border:1px solid var(--line); font-size:12.5px; color:var(--muted);
+  }
+  .barraDesc b{color:var(--ink)}
+  .barraDesc button{
+    border:1px solid var(--line2); background:var(--surface); color:var(--ink);
+    border-radius:8px; padding:3px 9px; font-size:12px; cursor:pointer; font-family:inherit;
+  }
+  .barraDesc button:hover{border-color:var(--ink)}
+  .barraDesc .aviso{color:var(--markup)}
   .foto{position:relative; aspect-ratio:16/10; background:var(--surface2); overflow:hidden}
   .foto img{width:100%; height:100%; object-fit:cover; display:block}
   .foto .sinfoto{
@@ -671,6 +700,7 @@ ${pestanas.length > 1 ? `<div class="solapas" role="tablist">${solapas}</div>` :
 </div>
 
 <div class="resumen" id="resumen"></div>
+<div class="barraDesc" id="barraDesc" hidden></div>
 <div class="rejilla" id="rejilla"></div>
 <div class="marco" id="marco" hidden><table><thead><tr id="cabecera"></tr></thead><tbody id="cuerpoTabla"></tbody></table></div>
 <div class="nada" id="nada" hidden>Ningún alojamiento coincide con estos filtros.</div>
@@ -703,6 +733,27 @@ try {
 if (!PESTANAS.some(function (p) { return p.id === estado.pestana; })) estado.pestana = PESTANAS[0].id;
 function guardar() { try { localStorage.setItem(CLAVE, JSON.stringify(estado)); } catch (e) {} }
 
+// Los descartados van aparte y con una clave FIJA: la de los filtros lleva las
+// noches adentro y cambia todos los dias, asi que guardarlos ahi los perderia
+// en cada corrida, que es justo lo contrario de lo que se pide.
+var CLAVE_DESC = 'agoda-descartados';
+var descartados = {};
+var guardaDeVerdad = false;
+try {
+  descartados = JSON.parse(localStorage.getItem(CLAVE_DESC)) || {};
+  // Probar de verdad: en algunos navegadores el storage existe pero no escribe,
+  // y descartar algo y que reaparezca al recargar seria peor que avisar.
+  localStorage.setItem(CLAVE_DESC, JSON.stringify(descartados));
+  guardaDeVerdad = localStorage.getItem(CLAVE_DESC) != null;
+} catch (e) { descartados = {}; }
+var verDescartados = false;
+var ultimoDescartado = null;
+
+function guardarDescartados() {
+  try { localStorage.setItem(CLAVE_DESC, JSON.stringify(descartados)); } catch (e) {}
+}
+function estaDescartado(d) { return Object.prototype.hasOwnProperty.call(descartados, String(d.id)); }
+
 function $(id) { return document.getElementById(id); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function norm(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase(); }
@@ -728,6 +779,7 @@ function curva(h, ancho) {
 function filtrados() {
   return activa().datos.filter(function (d) {
     var p = precioDe(d);
+    if (!verDescartados && estaDescartado(d)) return false;
     if (estado.tipos.length && estado.tipos.indexOf(d.tipo) < 0) return false;
     if (estado.zonas.length && estado.zonas.indexOf(d.zona) < 0) return false;
     if (estado.max != null && (p == null || p > estado.max)) return false;
@@ -791,7 +843,10 @@ function ficha(d) {
   }
 
   var ancla = 'href="' + esc(d.url) + '" target="_blank" rel="noopener noreferrer"';
-  return '<article class="ficha">' +
+  var cruz = '<button type="button" class="tachar" data-tachar="' + esc(d.id) + '" ' +
+    'title="No mostrarme mas este" aria-label="Descartar ' + esc(d.nombre) + '">' +
+    (estaDescartado(d) ? '↩' : '✕') + '</button>';
+  return '<article class="ficha' + (estaDescartado(d) ? ' fuera' : '') + '">' + cruz +
     '<a class="foto" ' + ancla + ' aria-label="Abrir ' + esc(d.nombre) + ' en Agoda">' + foto +
       '<span class="sello">' + fmt(precioDe(d)) + '<span class="moneda">' + p.moneda + '</span></span>' +
       recargo + baja +
@@ -872,6 +927,8 @@ function fila(d, i) {
     '<td style="color:var(--muted)">' + esc(d.tipo) + '</td><td>' + esc(d.zona) + '</td>' +
     '<td><a href="' + esc(d.url) + '" target="_blank" rel="noopener noreferrer">' + esc(d.nombre) + '</a>' +
       '<button type="button" class="copiar" data-url="' + esc(d.url) + '" title="Copiar el link de Agoda">⧉</button>' +
+      '<button type="button" class="tachar" data-tachar="' + esc(d.id) + '" title="No mostrarme mas este">' +
+        (estaDescartado(d) ? '↩' : '✕') + '</button>' +
       etiquetasDe(d) + '</td>' +
   '</tr>';
 }
@@ -906,6 +963,51 @@ function bandas() {
   $('marcaAyer').hidden = !cmp;
 }
 
+function nombresDescartados() {
+  return Object.keys(descartados);
+}
+
+function pintarBarraDesc() {
+  var ids = nombresDescartados();
+  var barra = $('barraDesc');
+  barra.hidden = ids.length === 0;
+  if (!ids.length) return;
+
+  var html = '<span><b>' + ids.length + '</b> descartado' + (ids.length > 1 ? 's' : '') + '</span>' +
+    '<button type="button" id="dVer">' + (verDescartados ? 'ocultarlos' : 'verlos') + '</button>' +
+    (ultimoDescartado ? '<button type="button" id="dDeshacer">traer el último</button>' : '') +
+    '<button type="button" id="dCopiar" title="Para que no vuelvan aunque cambies de navegador">copiar comando</button>';
+  if (!guardaDeVerdad) {
+    html += '<span class="aviso">Tu navegador no guarda esto entre recargas: usá el comando.</span>';
+  }
+  barra.innerHTML = html;
+
+  $('dVer').addEventListener('click', function () { verDescartados = !verDescartados; pintar(); });
+  var deshacer = $('dDeshacer');
+  if (deshacer) deshacer.addEventListener('click', function () {
+    delete descartados[ultimoDescartado];
+    ultimoDescartado = null;
+    guardarDescartados(); pintar();
+  });
+  $('dCopiar').addEventListener('click', function (ev) {
+    copiarYAvisar('node bin/agoda.mjs descartar ' + nombresDescartados().join(' '), ev.currentTarget);
+  });
+}
+
+function tachar(id) {
+  var clave = String(id);
+  if (Object.prototype.hasOwnProperty.call(descartados, clave)) {
+    delete descartados[clave];
+    if (ultimoDescartado === clave) ultimoDescartado = null;
+  } else {
+    var d = activa().datos.filter(function (x) { return String(x.id) === clave; })[0];
+    descartados[clave] = d ? d.nombre : '';
+    ultimoDescartado = clave;
+  }
+  guardarDescartados();
+  pintar();
+}
+
 function pintar() {
   var p = activa();
   var f = ordenados();
@@ -927,6 +1029,7 @@ function pintar() {
 
   if (fichas) { $('rejilla').innerHTML = f.map(ficha).join(''); $('cuerpoTabla').innerHTML = ''; }
   else { cabeceraTabla(); $('cuerpoTabla').innerHTML = f.map(fila).join(''); $('rejilla').innerHTML = ''; }
+  pintarBarraDesc();
   guardar();
 }
 
@@ -1060,6 +1163,11 @@ function copiarYAvisar(url, boton) {
   });
 }
 document.addEventListener('click', function (ev) {
+  var cruz = ev.target.closest ? ev.target.closest('.tachar') : null;
+  if (cruz) {
+    ev.preventDefault(); ev.stopPropagation();
+    return tachar(cruz.dataset.tachar);
+  }
   var boton = ev.target.closest ? ev.target.closest('.copiar') : null;
   if (boton) {
     ev.preventDefault(); ev.stopPropagation();

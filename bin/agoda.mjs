@@ -33,6 +33,7 @@ const COMANDOS = {
   estado: cmd.cmdEstado, status: cmd.cmdEstado,
   sincronizar: cmd.cmdSincronizar, sync: cmd.cmdSincronizar,
   servir: cmd.cmdServir, serve: cmd.cmdServir,
+  descartar: cmd.cmdDescartar, descartados: cmd.cmdDescartar, discard: cmd.cmdDescartar,
 };
 
 const { comando, pos, op } = parsear(process.argv.slice(2));

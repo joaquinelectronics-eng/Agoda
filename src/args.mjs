@@ -77,6 +77,11 @@ ${B('COMANDOS')}
   ${B('estado')}                Si la automatizacion esta corriendo y con que huecos.
   ${B('sincronizar')} [dir]      Reconstruye la base desde los archivos de muestras.
   ${B('servir')} [carpeta]      Sirve la pagina por HTTP, para abrirla del celular.
+  ${B('descartar')} [id...]     Los que no querés volver a ver (la cruz de la pagina).
+
+${B('DESCARTAR')}
+  --quitar             Sacarlos de la lista: vuelven a aparecer
+  --con-descartados    En cualquier comando, mostrarlos igual esta vez
 
 ${B('SERVIR')}
   --puerto <n>         Puerto donde escuchar (8080)

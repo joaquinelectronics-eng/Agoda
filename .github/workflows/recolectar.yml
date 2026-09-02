@@ -1,0 +1,92 @@
+# Una sola corrida que se queda andando horas, muestreando cada 15 minutos.
+#
+# Por que asi y no con "schedule": el cron de GitHub no disparo ni una vez en
+# una hora, y es sabido que se demora o se saltea corridas. Una corrida larga
+# no depende del scheduler: se arranca una vez y sigue sola.
+#
+# Solo junta datos y los sube. La pagina la republica muestra.yml, que corre
+# cuando termina esta o cuando se la dispara a mano.
+name: recolectar
+
+on:
+  workflow_dispatch:
+    inputs:
+      horas:
+        description: Cuantas horas quedarse muestreando (max 5.5)
+        default: '5.5'
+
+concurrency:
+  group: recolectar          # propio, para no bloquear a muestra.yml
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  TZ: America/Argentina/Buenos_Aires
+  AGODA_TZ: America/Argentina/Buenos_Aires
+  NOCHE_FIJA: '2026-09-04'
+  FILTROS: --moneda USD --paginas todas --silencioso --serie datos
+
+jobs:
+  recolectar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350     # el tope de un job son 6 h
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('package-lock.json') }}
+
+      - run: node node_modules/playwright-core/cli.js install --with-deps chromium
+
+      - name: Muestrear cada 15 minutos
+        run: |
+          set -u
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+          fin=$(awk -v h="${{ inputs.horas }}" 'BEGIN{printf "%d", systime() + h*3600}')
+
+          while [ "$(date +%s)" -lt "$fin" ]; do
+            hora=$(date +%-H)
+            if [ "$hora" -ge 11 ] && [ "$hora" -le 23 ]; then
+              node bin/agoda.mjs sincronizar >/dev/null
+
+              # Que una noche falle no puede cortar la corrida entera: quedaria
+              # sin muestrear el resto de la tarde por un error de un minuto.
+              if [[ ! "$NOCHE_FIJA" < "$(date +%F)" ]]; then
+                node bin/agoda.mjs buscar "Buenos Aires" $FILTROS --noche "$NOCHE_FIJA" || echo "!! fallo la noche fija"
+              fi
+              node bin/agoda.mjs buscar "Buenos Aires" $FILTROS || echo "!! fallo la noche de hoy"
+
+              git add datos
+              if ! git diff --cached --quiet; then
+                git commit -q -m "Muestra de $(date '+%F %H:%M %Z')"
+                for i in 1 2 3; do
+                  git pull --rebase --autostash -q origin "${GITHUB_REF_NAME}" && git push -q && break
+                  sleep $((i * 10))
+                done
+              fi
+            else
+              echo "$(date '+%H:%M') fuera de la franja de 11 a 23"
+            fi
+
+            # Dormir hasta el proximo cuarto de hora en punto.
+            ahora=$(date +%s)
+            proximo=$(( (ahora / 900 + 1) * 900 ))
+            [ "$proximo" -ge "$fin" ] && break
+            echo "-- proxima a las $(date -d "@$proximo" '+%H:%M')"
+            sleep $(( proximo - ahora ))
+          done

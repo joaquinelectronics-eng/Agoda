@@ -28,6 +28,12 @@ on:
     paths:
       - 'datos/**'
 
+  # Cuando termina una tanda de recoleccion, republicar la pagina con todo lo
+  # que junto.
+  workflow_run:
+    workflows: [recolectar]
+    types: [completed]
+
   workflow_dispatch:
 
 # Que dos corridas no se pisen: si una tarda mas de 15 minutos, la siguiente

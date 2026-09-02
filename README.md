@@ -67,6 +67,49 @@ compu esté prendida en la franja que sigas.
 Para pararlo: `node bin/agoda.mjs programar --quitar --todo`, o en Windows
 `schtasks /delete /tn agoda /f`.
 
+### En un servidor, para que no dependa de tu compu
+
+Una tarea local solo corre si la máquina está prendida a esa hora. En un servidor
+chico el `cron` dispara al minuto exacto, siempre.
+
+Dos cosas antes de elegir dónde:
+
+- **Agoda cobra distinto según el país de la IP.** Conviene un servidor en
+  Sudamérica (São Paulo), y que sea **el único** que junta datos: si mezclás
+  muestras tomadas desde IPs de países distintos, un cambio de IP puede parecer
+  una baja de precio.
+- **2 GB de RAM.** Chromium no entra cómodo en 1 GB; si la máquina tiene menos,
+  el instalador te avisa cómo agregarle swap.
+
+En una Ubuntu recién hecha:
+
+```bash
+sudo apt-get update && sudo apt-get install -y git curl
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+git clone https://github.com/joaquinelectronics-eng/Agoda.git
+cd Agoda
+./scripts/instalar.sh --web
+```
+
+`--web` además deja la página servida por HTTP como servicio de systemd, así la
+abrís del celular en `http://<ip>:8080`. Falta abrir ese puerto en el firewall
+del proveedor (Oracle: *Security List* de la VCN; AWS: *Security Group*; Vultr y
+DigitalOcean vienen abiertos).
+
+El instalador pone la zona horaria de la máquina en la tuya, porque **cron
+dispara con la hora del sistema** y un servidor nuevo viene en UTC: sin eso, "de
+11 a 23" terminaría siendo de 8 a 20.
+
+```bash
+agoda servir reportes --puerto 8080 --clave melon   # pide ?k=melon en la URL
+systemctl status agoda-web                          # cómo va el servicio
+```
+
+Sin `--clave` la ve cualquiera que sepa la IP y el puerto. Son precios de
+hoteles, pero es tu decisión.
+
 **En Windows, nada de `npx`.** Windows trae la ejecución de scripts deshabilitada
 y `npx` en PowerShell es un `.ps1`, así que lo bloquea con un `UnauthorizedAccess`.
 El navegador se baja invocando el cli de playwright directamente con node:

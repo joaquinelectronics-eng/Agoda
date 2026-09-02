@@ -21,6 +21,7 @@ const ALIAS = {
   near: 'cerca', radius: 'radio',
   limit: 'limite', l: 'limite',
   every: 'cada', until: 'hasta-hora', repeticiones: 'veces',
+  port: 'puerto', key: 'clave',
   q: 'texto', buscar: 'texto',
 };
 
@@ -75,6 +76,13 @@ ${B('COMANDOS')}
   ${B('horarios')}              A que hora del dia suele convenir reservar.
   ${B('estado')}                Si la automatizacion esta corriendo y con que huecos.
   ${B('sincronizar')} [dir]      Reconstruye la base desde los archivos de muestras.
+  ${B('servir')} [carpeta]      Sirve la pagina por HTTP, para abrirla del celular.
+
+${B('SERVIR')}
+  --puerto <n>         Puerto donde escuchar (8080)
+  --host <ip>          Interfaz donde escuchar (0.0.0.0: todas)
+  --clave <palabra>    Pedirla en la URL (?k=palabra). Sin esto, la ve cualquiera
+                       que sepa la IP y el puerto.
 
 ${B('BUSQUEDA')}
   --noche <f>          Fecha de entrada: hoy (por defecto), manana, +3, viernes, 05/09, 2026-09-05

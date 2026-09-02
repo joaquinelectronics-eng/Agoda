@@ -11,10 +11,12 @@ import { filtrar, enriquecer, ordenar, parsearCoords, idsDeTipo } from './filtro
 import { compararConDiaAnterior, indicePorPropiedad } from './comparar.mjs';
 import { analizarHorarios, nochesDelPerfil } from './horarios.mjs';
 import { existsSync, readFileSync } from 'node:fs';
+import os from 'node:os';
 import { tomarCerrojo } from './cerrojo.mjs';
 import { exportarMuestra, importarSerie } from './serie.mjs';
 import * as OUT from './salida.mjs';
 import { miniatura, incrustar, avisoProxy } from './imagenes.mjs';
+import { crearServidor, portada } from './servidor.mjs';
 import {
   c, log, warn, parseFecha, isoDate, num, sleep, haceCuanto, horaCorta,
   fmtPrecio, fmtPct, recortar, sparkline, normalizar,
@@ -791,11 +793,86 @@ export async function cmdHorarios(db, op, pos) {
   log(c('gray', '  "tipico" es la mediana; "promedio" es el promedio geometrico, que es el que corresponde para ratios.'));
 }
 
+// --- servir la pagina --------------------------------------------------------
+
+/** Las IPs por las que se puede llegar a esta maquina, para decirte que abrir. */
+export function direcciones(puerto) {
+  const salida = [];
+  for (const [nombre, redes] of Object.entries(os.networkInterfaces())) {
+    for (const r of redes ?? []) {
+      if (r.family !== 'IPv4' || r.internal) continue;
+      salida.push({ nombre, url: `http://${r.address}:${puerto}` });
+    }
+  }
+  return salida;
+}
+
+/**
+ * Deja la pagina servida por HTTP. Es para cuando el seguimiento corre en un
+ * servidor: la tarea de cada hora reescribe el html y vos lo abris del celular.
+ */
+export async function cmdServir(db, op, pos) {
+  const carpeta = pos[0] ?? op.carpeta ?? 'reportes';
+  const puerto = num(op.puerto, 8080);
+  const host = op.host ?? '0.0.0.0';
+  const clave = typeof op.clave === 'string' && op.clave ? op.clave : null;
+
+  if (!existsSync(carpeta)) {
+    throw new Error(`No existe la carpeta "${carpeta}". La pagina se genera con:\n` +
+      `  agoda buscar "Buenos Aires" --html ${path.join(carpeta, 'hoy.html')}`);
+  }
+
+  const servidor = crearServidor({
+    carpeta,
+    clave,
+    alPedido: (codigo, metodo, url) => log(c('gray', `  ${new Date().toISOString()} ${codigo} ${metodo} ${recortar(url, 60)}`)),
+  });
+
+  await new Promise((listo, error) => {
+    servidor.once('error', (e) => {
+      error(e.code === 'EADDRINUSE'
+        ? new Error(`El puerto ${puerto} ya esta ocupado. Proba con --puerto ${puerto + 1}.`)
+        : e);
+    });
+    servidor.listen(puerto, host, listo);
+  });
+
+  const tapa = portada(path.resolve(carpeta));
+  const sufijo = clave ? `/?k=${encodeURIComponent(clave)}` : '/';
+  log('');
+  log(c('green', `  Sirviendo ${path.resolve(carpeta)} en el puerto ${puerto}`));
+  log(c('gray', `  La raiz "/" te da ${tapa ?? 'nada todavia: falta generar el html'}`));
+  for (const d of direcciones(puerto)) log(`    ${d.url}${sufijo}  ${c('gray', `(${d.nombre})`)}`);
+  if (!clave) log(c('gray', '  Sin clave: cualquiera que sepa la IP y el puerto puede verla. Con --clave <palabra> se pide.'));
+  log(c('gray', '  Cortalo con Ctrl-C.'));
+  log('');
+
+  // No termina: se queda escuchando hasta que lo mates.
+  await new Promise(() => {});
+}
+
 // --- salud de la automatizacion ----------------------------------------------
 
 /** En que zona horaria se estan leyendo las horas. Importa si corre en un servidor. */
-function zonaHoraria() {
+export function zonaHoraria() {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'la del sistema'; } catch { return 'la del sistema'; }
+}
+
+/**
+ * La zona de la maquina, ignorando AGODA_TZ: es con la que cron decide a que
+ * hora dispara. Un servidor recien hecho viene en UTC, asi que "de 11 a 23"
+ * terminaria siendo de 8 a 20 hora de Buenos Aires.
+ */
+export function zonaDelSistema() {
+  const previa = process.env.TZ;
+  try {
+    delete process.env.TZ;
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'la del sistema';
+  } catch {
+    return 'la del sistema';
+  } finally {
+    if (previa !== undefined) process.env.TZ = previa;
+  }
 }
 
 export async function cmdEstado(db, op, pos) {
@@ -1007,7 +1084,7 @@ function raizProyecto() {
 const entrecomillar = (v) => (/^[\w.,:\/@+-]+$/.test(String(v)) ? String(v) : `"${String(v).replace(/(["$`\\])/g, '\\$1')}"`);
 
 /** Reconstruye la linea de comando que va a correr cada hora. */
-function comandoProgramado(op, destino, { html, registro }) {
+function comandoProgramado(op, destino, { html, registro, entorno = false }) {
   const raiz = raizProyecto();
   const partes = [entrecomillar(process.execPath), 'bin/agoda.mjs', 'buscar'];
   if (destino) partes.push(entrecomillar(destino));
@@ -1020,7 +1097,10 @@ function comandoProgramado(op, destino, { html, registro }) {
   if (op.paginas === undefined) partes.push('--paginas', 'todas');
   if (op.noche === undefined) partes.push('--noche', 'hoy');
   partes.push('--silencioso', '--html', entrecomillar(html));
-  return { raiz, linea: `cd ${entrecomillar(raiz)} && ${partes.join(' ')} >> ${entrecomillar(registro)} 2>&1` };
+  // En cron la zona va delante del comando: el proceso hereda la del sistema, que
+  // en un servidor recien hecho es UTC, y ahi "hoy" seria otra noche.
+  const zona = entorno ? `AGODA_TZ=${entrecomillar(zonaHoraria())} ` : '';
+  return { raiz, linea: `cd ${entrecomillar(raiz)} && ${zona}${partes.join(' ')} >> ${entrecomillar(registro)} 2>&1` };
 }
 
 /** Los tres primeros campos del cron: minutos, horas, y el resto todos los dias. */
@@ -1048,7 +1128,17 @@ function leerCrontab() {
 }
 
 function escribirCrontab(texto) {
-  execFileSync('crontab', ['-'], { input: texto.endsWith('\n') ? texto : texto + '\n', stdio: ['pipe', 'ignore', 'pipe'] });
+  try {
+    execFileSync('crontab', ['-'], { input: texto.endsWith('\n') ? texto : texto + '\n', stdio: ['pipe', 'ignore', 'pipe'] });
+  } catch (e) {
+    // Hay imagenes de servidor que vienen sin cron. Sin esto sale un
+    // "spawnSync crontab ENOENT" que no le dice nada a nadie.
+    if (e.code === 'ENOENT') {
+      throw new Error('No hay comando "crontab" en esta maquina, asi que no puedo programar nada.\n' +
+        '  En Ubuntu/Debian:  sudo apt-get install -y cron && sudo systemctl enable --now cron');
+    }
+    throw e;
+  }
 }
 
 /**
@@ -1120,7 +1210,8 @@ export async function cmdProgramar(db, op, pos) {
 
   const html = op.html ?? `reportes/${nombre}.html`;
   const registro = op.registro ?? 'data/agoda.log';
-  const { raiz, linea } = comandoProgramado(op, destino, { html, registro });
+  // La linea de cron lleva la zona adelante; la de Windows no, que la pone el .cmd.
+  const { raiz, linea } = comandoProgramado(op, destino, { html, registro, entorno: process.platform !== 'win32' });
   const cron = `${horarioCron(cada, desde, hasta)} ${linea}`;
 
   const porDia = Math.floor(60 / cada) * (hasta - desde + 1);
@@ -1128,6 +1219,16 @@ export async function cmdProgramar(db, op, pos) {
   log(`  Tarea ${c('bold', nombre)} · ${c('bold', `cada ${cada} min, de ${desde}:00 a ${hasta}:59`)} ${c('gray', `(${porDia} muestras por dia)`)}`);
   log(c('gray', `  Cada corrida guarda una muestra y regenera ${html}`));
   log('');
+
+  // cron dispara con la hora de la maquina, no con AGODA_TZ.
+  const zona = zonaHoraria();
+  const sistema = zonaDelSistema();
+  if (process.platform !== 'win32' && sistema !== zona) {
+    warn(`La maquina esta en ${sistema} y vos medis en ${zona}.`);
+    log(c('gray', `  cron dispara con la hora de la maquina, asi que "de ${desde} a ${hasta}" seria hora ${sistema}.`));
+    log(c('gray', `  Emparejalas con:  sudo timedatectl set-timezone ${zona}`));
+    log('');
+  }
 
   if (process.platform === 'win32') {
     // /ri con /du cubre una franja horaria; /sc minute correria las 24 horas.

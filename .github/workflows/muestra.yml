@@ -100,13 +100,21 @@ jobs:
           done
           exit 1
 
+      # Publicar la pagina es lo ultimo y va con continue-on-error: los datos ya
+      # estan guardados y commiteados arriba, y un problema con Pages no puede
+      # dar la corrida por fallida ni frenar la recoleccion.
+      #
+      # Nada de enablement: true. El token de Actions no puede CREAR el sitio de
+      # Pages ("Resource not accessible by integration"); hay que prenderlo una
+      # vez en Settings -> Pages -> Source: GitHub Actions.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
+        continue-on-error: true
 
       - uses: actions/upload-pages-artifact@v3
+        continue-on-error: true
         with:
           path: sitio
 
       - id: pagina
+        continue-on-error: true
         uses: actions/deploy-pages@v4

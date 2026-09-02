@@ -7,6 +7,9 @@ data/*.db-journal
 data/*.db-wal
 # La base es local y efimera; lo que se versiona son las muestras en datos/.
 data/*.db-shm
+# El registro es de cada maquina: versionarlo mezclaba las corridas de una
+# con las de la otra, y encima el pull te pisaba el tuyo.
+data/*.log
 *.html.out
 reportes/
 .DS_Store

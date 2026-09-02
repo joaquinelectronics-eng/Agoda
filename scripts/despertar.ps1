@@ -72,8 +72,11 @@ if ($estados -notmatch 'Hiberna') {
 # Listar los despertadores si que pide administrador. Es solo la verificacion:
 # lo de arriba ya quedo configurado igual, asi que no vale la pena asustar.
 Write-Host "`nDespertadores activos ahora:" -ForegroundColor Cyan
-$timers = (& powercfg /waketimers 2>&1) -join "`n"
-if ($LASTEXITCODE -ne 0 -or $timers -match 'privilegios|privileges') {
+# Nada de 2>&1: con ErrorActionPreference=Stop, lo que un comando externo
+# escribe en el canal de error se vuelve terminante y corta el script justo
+# antes del resumen. A /dev/null, y el codigo de salida dice si anduvo.
+$timers = (& powercfg /waketimers 2>$null) -join "`n"
+if ($LASTEXITCODE -ne 0 -or -not $timers) {
   Write-Host "    (para verlos hace falta PowerShell como administrador: powercfg /waketimers)"
   Write-Host "    Lo de arriba ya quedo configurado; esto era solo para mirarlo."
 } else {

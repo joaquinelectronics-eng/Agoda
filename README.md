@@ -77,11 +77,18 @@ powershell -ExecutionPolicy Bypass -File scripts\despertar.ps1
 
 Le pone a la tarea el permiso de **despertar la máquina**, deja que corra con
 batería y, si a una hora estaba apagada, que tome esa muestra al volver. También
-habilita los temporizadores de reactivación en el plan de energía: sin eso
-Windows los ignora en silencio.
+toca dos cosas del plan de energía:
 
-Después suspendé la compu en vez de apagarla. **Desde apagada no se despierta**:
-eso no lo arregla ningún ajuste.
+- **Temporizadores de reactivación**: sin eso Windows ignora el despertador en
+  silencio, y la tarea queda perfecta sin dispararse nunca.
+- **Suspensión desatendida a 10 minutos**: cuando la máquina se despierta sola y
+  nadie la toca, Windows la vuelve a dormir a los 2 minutos. La muestra tarda más
+  que eso, así que se dormiría a mitad del scrapeo.
+
+Después hibernála o suspendéla, pero **no la apagues**. Ojo con *Inicio rápido*:
+"Apagar" también escribe el archivo de hibernación y parece lo mismo, pero no
+deja ningún despertador armado. Desde apagada no se despierta, y eso no lo
+arregla ningún ajuste.
 
 ### En un servidor, para que no dependa de tu compu
 

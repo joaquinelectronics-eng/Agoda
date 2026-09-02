@@ -3,8 +3,10 @@
 #
 #   powershell -ExecutionPolicy Bypass -File scripts\despertar.ps1
 #
-# Ojo: esto anda si SUSPENDES la maquina (o hiberna). Si la apagas del todo no
-# hay forma de que se despierte sola.
+# Anda igual si la SUSPENDES o si la HIBERNAS: el despertador se arma en los dos
+# casos. Lo que no despierta es apagada, y ojo que con Inicio rapido "Apagar"
+# parece hibernar (tambien escribe el archivo de hibernacion) pero Windows no
+# arma ningun despertador. Tiene que ser Hibernar de verdad.
 
 $ErrorActionPreference = 'Stop'
 $tarea = 'agoda'
@@ -45,6 +47,28 @@ if ($LASTEXITCODE -ne 0) {
   Write-Host "    plan de energia listo" -ForegroundColor Green
 }
 
+# Cuando la maquina se despierta sola y no hay nadie tocandola, Windows la vuelve
+# a dormir a los 2 minutos (el "tiempo de espera de suspension desatendida"). La
+# muestra tarda mas que eso: sin subirlo, se dormiria a mitad del scrapeo y en el
+# registro quedaria una corrida cortada sin explicacion.
+Write-Host "Dandole tiempo a la muestra antes de volver a dormirse (10 min)..."
+& powercfg /setacvalueindex SCHEME_CURRENT SUB_SLEEP UNATTENDSLEEP 600
+& powercfg /setdcvalueindex SCHEME_CURRENT SUB_SLEEP UNATTENDSLEEP 600
+& powercfg /setactive SCHEME_CURRENT
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "    no pude cambiarlo; proba esta ventana como administrador" -ForegroundColor Yellow
+} else {
+  Write-Host "    listo: se despierta, toma la muestra y a los 10 min se vuelve a dormir" -ForegroundColor Green
+}
+
+# Que hibernar este disponible: si el equipo no lo tiene habilitado, "Hibernar"
+# ni siquiera aparece y estarias apagando sin querer.
+$estados = (& powercfg /a) -join "`n"
+if ($estados -notmatch 'Hiberna') {
+  Write-Host "`n! Este equipo no tiene la hibernacion habilitada." -ForegroundColor Yellow
+  Write-Host "  Habilitala (como administrador) con:  powercfg /hibernate on"
+}
+
 Write-Host "`nDespertadores activos ahora:" -ForegroundColor Cyan
 & powercfg /waketimers
 
@@ -52,10 +76,14 @@ Write-Host @"
 
 Listo. De aca en mas:
 
-  - Suspende la compu en vez de apagarla (Inicio -> Apagar -> Suspender).
+  - Hiberna o suspende la compu, pero NO la apagues (Inicio -> Apagar -> Hibernar).
   - Se va a despertar a cada hora de 11 a 23, tomar la muestra y volver a dormirse.
-  - Si la apagas del todo, esas horas se pierden: desde apagada no se despierta.
+  - Ojo con Inicio rapido: "Apagar" parece hibernar pero no deja despertador armado.
+    Desde apagada esas horas se pierden.
   - Una notebook con muy poca bateria tampoco se despierta; dejala enchufada.
+
+  Para confirmar que la desperto el, despues de la primera vez:
+    powercfg /lastwake     (tiene que decir temporizador / RTC)
 
   Para ver si esta funcionando:  node bin/agoda.mjs estado
   El registro de cada corrida:   type data\agoda.log

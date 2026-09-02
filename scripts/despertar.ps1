@@ -69,8 +69,16 @@ if ($estados -notmatch 'Hiberna') {
   Write-Host "  Habilitala (como administrador) con:  powercfg /hibernate on"
 }
 
+# Listar los despertadores si que pide administrador. Es solo la verificacion:
+# lo de arriba ya quedo configurado igual, asi que no vale la pena asustar.
 Write-Host "`nDespertadores activos ahora:" -ForegroundColor Cyan
-& powercfg /waketimers
+$timers = (& powercfg /waketimers 2>&1) -join "`n"
+if ($LASTEXITCODE -ne 0 -or $timers -match 'privilegios|privileges') {
+  Write-Host "    (para verlos hace falta PowerShell como administrador: powercfg /waketimers)"
+  Write-Host "    Lo de arriba ya quedo configurado; esto era solo para mirarlo."
+} else {
+  Write-Host $timers
+}
 
 Write-Host @"
 

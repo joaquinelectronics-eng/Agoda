@@ -120,7 +120,7 @@ toca dos cosas del plan de energía:
 
 - **Temporizadores de reactivación**: sin eso Windows ignora el despertador en
   silencio, y la tarea queda perfecta sin dispararse nunca.
-- **Suspensión desatendida a 10 minutos**: cuando la máquina se despierta sola y
+- **Suspensión desatendida a 15 minutos**: cuando la máquina se despierta sola y
   nadie la toca, Windows la vuelve a dormir a los 2 minutos. La muestra tarda más
   que eso, así que se dormiría a mitad del scrapeo.
 
@@ -272,6 +272,38 @@ Dos que vale la pena conocer:
   bayesiana), así un 9.9 con 2 reviews no le gana a un 8.9 con 400.
 - **`valor`** es cuánta nota ajustada te dan por unidad de precio. Es el orden
   para "lo mejor que puedo conseguir por lo que quiero gastar".
+
+## Bajar el inventario completo
+
+Pedirle a Agoda la página 2, 3, 4… de una lista larga **no** trae la lista larga.
+Medido sobre Buenos Aires, 1271 disponibles:
+
+| página | vienen | nuevos | rango de precios |
+|--------|--------|--------|------------------|
+| 1      | 104    | 104    | 18–50            |
+| 3      | 104    | 74     | 48–79            |
+| 11     | 104    | 24     | 139–442          |
+| 12     | 51     | 10     | 189–1092         |
+| 13     | 0      | 0      | —                |
+
+Agoda re-arma el ranking en cada pedido: las páginas se solapan cada vez más y
+el listado corta cerca de los 800. Y lo que queda afuera **no son los caros** —
+quedan huecos en todo el rango, baratos incluidos.
+
+`--paginas todas` hace otra cosa: barre por **ventanas de precio**, usando el
+mismo filtro que Agoda arma con `&priceFrom=&priceTo=`. Cada ventana devuelve
+pocos, entra entera y viene ordenada. Si vuelve llena, se parte al medio; si ya
+no se puede partir (muchos al mismo precio), recién ahí se pagina adentro.
+
+Antes del barrido hace igual el paginado plano, porque alcanza a los que **no
+tienen precio publicado** y que un filtro de precio no puede traer.
+
+El tramo tiene que estar acotado arriba: con el tope abierto (`to: 999999`)
+Agoda devuelve la página desordenada, mezclando 18 con 210, y el barrido se
+saltea alojamientos.
+
+Resultado sobre la misma búsqueda: **de 790 a 1055 de 1135**, 62 % → 93 %. Tarda
+unos 134 segundos en vez de 20.
 
 ## Que corra solo, hora a hora
 

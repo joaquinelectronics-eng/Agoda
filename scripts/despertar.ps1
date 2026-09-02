@@ -51,14 +51,14 @@ if ($LASTEXITCODE -ne 0) {
 # a dormir a los 2 minutos (el "tiempo de espera de suspension desatendida"). La
 # muestra tarda mas que eso: sin subirlo, se dormiria a mitad del scrapeo y en el
 # registro quedaria una corrida cortada sin explicacion.
-Write-Host "Dandole tiempo a la muestra antes de volver a dormirse (10 min)..."
-& powercfg /setacvalueindex SCHEME_CURRENT SUB_SLEEP UNATTENDSLEEP 600
-& powercfg /setdcvalueindex SCHEME_CURRENT SUB_SLEEP UNATTENDSLEEP 600
+Write-Host "Dandole tiempo a la muestra antes de volver a dormirse (15 min)..."
+& powercfg /setacvalueindex SCHEME_CURRENT SUB_SLEEP UNATTENDSLEEP 900
+& powercfg /setdcvalueindex SCHEME_CURRENT SUB_SLEEP UNATTENDSLEEP 900
 & powercfg /setactive SCHEME_CURRENT
 if ($LASTEXITCODE -ne 0) {
   Write-Host "    no pude cambiarlo; proba esta ventana como administrador" -ForegroundColor Yellow
 } else {
-  Write-Host "    listo: se despierta, toma la muestra y a los 10 min se vuelve a dormir" -ForegroundColor Green
+  Write-Host "    listo: se despierta, toma la muestra y a los 15 min se vuelve a dormir" -ForegroundColor Green
 }
 
 # Que hibernar este disponible: si el equipo no lo tiene habilitado, "Hibernar"

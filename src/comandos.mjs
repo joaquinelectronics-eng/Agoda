@@ -37,6 +37,13 @@ function paginasPedidas(op, porDefecto = 3) {
   return Math.max(1, num(op.paginas, porDefecto));
 }
 
+/** "todas" ya no se pagina: se barre por ventanas de precio (ver scrapear). */
+function barridoPedido(op) {
+  if (op.paginas === undefined) return false;
+  const s = normalizar(op.paginas);
+  return s === 'todas' || s === 'todo' || s === 'all';
+}
+
 function opcionesBusqueda(op) {
   return {
     checkIn: parseFecha(op.noche),
@@ -198,7 +205,7 @@ async function buscarYGuardar(db, op, pos) {
     }
 
     if (!op.silencioso) log(c('gray', `  buscando: ${ctx.url}`));
-    datos = await scrapear(page, ctx.url, { paginas: paginasPedidas(op), verboso: !op.silencioso });
+    datos = await scrapear(page, ctx.url, { paginas: paginasPedidas(op), barrido: barridoPedido(op), verboso: !op.silencioso });
   } finally {
     await cerrar();
   }
@@ -371,7 +378,7 @@ export async function cmdSeguir(db, op, pos) {
     const { page, cerrar } = await abrirNavegador({ headful: op.headful === true });
     try {
       ctx = await armarBusqueda(db, page, op, pos);
-      datos = await scrapear(page, ctx.url, { paginas: paginasPedidas(op), verboso: false });
+      datos = await scrapear(page, ctx.url, { paginas: paginasPedidas(op), barrido: barridoPedido(op), verboso: false });
     } catch (e) {
       warn(`muestra ${i} fallo: ${e.message}`);
       await cerrar();

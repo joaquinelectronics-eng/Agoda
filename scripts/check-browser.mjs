@@ -5,5 +5,5 @@ const ruta = await resolverChromium().catch(() => null);
 if (ruta) {
   console.log(`agoda-tracker: navegador listo (${ruta})`);
 } else {
-  console.log('agoda-tracker: falta el navegador. Corre:  npx playwright install chromium');
+  console.log('agoda-tracker: falta el navegador. Corre:  node node_modules/playwright-core/cli.js install chromium');
 }

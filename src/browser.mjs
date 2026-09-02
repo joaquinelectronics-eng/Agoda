@@ -95,7 +95,7 @@ export async function abrirNavegador({ headful = false, locale = 'es-AR', timezo
   const executablePath = await resolverChromium();
   if (!executablePath) {
     throw new Error(
-      'No encontre Chromium. Instalalo con:  npx playwright install chromium\n' +
+      'No encontre Chromium. Instalalo con:  node node_modules/playwright-core/cli.js install chromium\n' +
       '(o apunta la variable AGODA_CHROME a un Chrome/Chromium existente)'
     );
   }

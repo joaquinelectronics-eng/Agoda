@@ -34,7 +34,10 @@ Write-Host "    Buscando el navegador..."
 & node -e "require('playwright-core').chromium.executablePath()" 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) {
   Write-Host "    No esta; bajandolo (~150 MB, puede tardar varios minutos)"
-  npx --yes playwright install chromium
+  # Ojo: nada de npx. En PowerShell npx es un .ps1 y la politica de scripts que
+  # trae Windows de fabrica lo bloquea. El cli de playwright-core se invoca
+  # directo con node, y ademas usa la version exacta que pide el proyecto.
+  & node node_modules\playwright-core\cli.js install chromium
   if ($LASTEXITCODE -ne 0) { Write-Host "Fallo la descarga del navegador" -ForegroundColor Red; exit 1 }
 } else {
   Write-Host "    Ya estaba"
@@ -86,7 +89,7 @@ if ($LASTEXITCODE -ne 0) {
 La instalacion quedo a medias: las tareas estan registradas pero la muestra de
 prueba fallo, asi que cada corrida va a fallar igual. Mira el error de arriba.
 
-Si dice que falta Chromium:   npx playwright install chromium
+Si dice que falta Chromium:   node node_modules\playwright-core\cli.js install chromium
 y despues volve a correr este script.
 "@ -ForegroundColor Red
   exit 1

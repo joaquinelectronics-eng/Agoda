@@ -39,7 +39,7 @@ Necesitás Node 22.5 o más nuevo (usa el SQLite que ya viene con Node).
 ```bash
 git clone <este repo> && cd Agoda
 npm install
-npx playwright install chromium   # solo la primera vez
+node node_modules/playwright-core/cli.js install chromium   # solo la primera vez
 npm link                          # opcional: deja el comando `agoda` en el PATH
 ```
 
@@ -61,6 +61,16 @@ Corre en tu máquina, así que **no consume nada de la nube**. Solo necesita que
 compu esté prendida en la franja que sigas.
 
 Para pararlo: `node bin/agoda.mjs programar --quitar --todo`
+
+**En Windows, nada de `npx`.** Windows trae la ejecución de scripts deshabilitada
+y `npx` en PowerShell es un `.ps1`, así que lo bloquea con un `UnauthorizedAccess`.
+El navegador se baja invocando el cli de playwright directamente con node:
+
+```powershell
+node node_modules\playwright-core\cli.js install chromium
+```
+
+Además usa la versión exacta que pide el proyecto, en vez de la última publicada.
 
 ## Arranque rápido
 

@@ -8,7 +8,7 @@ RAIZ="$(pwd)"
 echo "==> 1/4  Dependencias"
 npm install --silent
 if ! node -e "require('playwright-core').chromium.executablePath()" >/dev/null 2>&1; then
-  npx --yes playwright install chromium
+  node node_modules/playwright-core/cli.js install chromium
 fi
 
 echo "==> 2/4  Recuperando las muestras ya guardadas"

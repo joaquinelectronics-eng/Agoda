@@ -1,0 +1,112 @@
+# Toma muestras de precios cada 15 minutos, sin depender de que haya una
+# computadora prendida. Corre en los runners de GitHub, que para un repo
+# publico son gratis y sin limite de minutos.
+#
+# Cada 15 minutos y no cada hora a proposito: GitHub demora las tareas
+# programadas cuando hay cola, y a veces se saltea alguna. Muestreando cuatro
+# veces por hora quedan todas las horas cubiertas igual. El analisis usa la hora
+# REAL de cada muestra, no la que estaba prevista, asi que una corrida que llega
+# tarde sirve lo mismo.
+#
+# La base sqlite del runner se borra en cada corrida: lo que queda son los
+# archivos de datos/ (uno por muestra, comprimidos), que al empezar se vuelven a
+# cargar con "sincronizar" y al terminar se commitean.
+name: muestra
+
+on:
+  schedule:
+    # De 11:00 a 23:45 hora de Buenos Aires (UTC-3) => 14:00 a 02:45 UTC.
+    - cron: '*/15 14-23,0-2 * * *'
+  workflow_dispatch:
+
+# Que dos corridas no se pisen: si una tarda mas de 15 minutos, la siguiente
+# espera en vez de empujar commits sobre la misma rama al mismo tiempo.
+concurrency:
+  group: muestra
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # para commitear las muestras
+  pages: write      # para publicar la pagina
+  id-token: write
+
+env:
+  TZ: America/Argentina/Buenos_Aires
+  AGODA_TZ: America/Argentina/Buenos_Aires
+  NOCHE_FIJA: '2026-09-04'
+  FILTROS: --moneda USD --paginas todas --silencioso --serie datos
+
+jobs:
+  muestra:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: github-pages
+      url: ${{ steps.pagina.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Navegador (cacheado entre corridas)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('package-lock.json') }}
+
+      - run: node node_modules/playwright-core/cli.js install --with-deps chromium
+
+      - name: Rearmar la base con las muestras ya guardadas
+        run: node bin/agoda.mjs sincronizar
+
+      - name: La noche fija
+        run: |
+          if [[ "$NOCHE_FIJA" < "$(date +%F)" ]]; then
+            echo "La noche del $NOCHE_FIJA ya paso; la salteo."
+            exit 0
+          fi
+          node bin/agoda.mjs buscar "Buenos Aires" $FILTROS --noche "$NOCHE_FIJA"
+
+      # Va segunda para que la pagina salga con las dos noches de la misma hora.
+      - name: Esta noche, y la pagina
+        run: |
+          solapa=()
+          if [[ ! "$NOCHE_FIJA" < "$(date +%F)" ]]; then solapa=(--pestanas "$NOCHE_FIJA"); fi
+          mkdir -p sitio
+          node bin/agoda.mjs buscar "Buenos Aires" $FILTROS --noche hoy "${solapa[@]}" --html sitio/index.html
+
+      # Antes de publicar: si algo falla mas adelante, los datos ya estan a salvo.
+      - name: Guardar las muestras nuevas
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add datos
+          if git diff --cached --quiet; then
+            echo "Sin muestras nuevas."
+            exit 0
+          fi
+          git commit -m "Muestra de $(date '+%F %H:%M %Z')"
+          # Puede haber entrado un commit mientras corriamos.
+          for intento in 1 2 3; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push && exit 0
+            sleep $((intento * 5))
+          done
+          exit 1
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: sitio
+
+      - id: pagina
+        uses: actions/deploy-pages@v4

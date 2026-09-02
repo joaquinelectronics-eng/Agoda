@@ -8,6 +8,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import * as DB from './db.mjs';
 
 const CAMPOS = [
@@ -17,7 +18,16 @@ const CAMPOS = [
   'habitaciones_libres',
 ];
 
-const nombreArchivo = (tomado) => `${tomado.replace(/[:.]/g, '-')}.json`;
+// Comprimidas: cada muestra repite el nombre, la foto, las coordenadas y el
+// barrio de cada alojamiento, que no cambian nunca. Sin gzip, cuatro muestras
+// por hora de dos noches son ~68 MB por dia en el repo; con gzip, ~6.
+const nombreArchivo = (tomado) => `${tomado.replace(/[:.]/g, '-')}.json.gz`;
+
+/** Lee una muestra, comprimida o no: las viejas quedaron en .json pelado. */
+function leerMuestra(archivo) {
+  const crudo = fs.readFileSync(archivo);
+  return JSON.parse(archivo.endsWith('.gz') ? zlib.gunzipSync(crudo) : crudo.toString('utf8'));
+}
 
 /** Escribe una muestra como archivo suelto. Devuelve la ruta, o null si ya estaba. */
 export function exportarMuestra(db, busquedaId, snapshotId, dir) {
@@ -31,7 +41,7 @@ export function exportarMuestra(db, busquedaId, snapshotId, dir) {
   if (fs.existsSync(destino)) return null;
 
   const filas = DB.filasSnapshot(db, snapshotId);
-  fs.writeFileSync(destino, JSON.stringify({
+  fs.writeFileSync(destino, zlib.gzipSync(JSON.stringify({
     busqueda: {
       ciudadId: b.ciudad_id, ciudad: b.ciudad, checkIn: b.check_in, los: b.los,
       adultos: b.adultos, ninos: b.ninos, habitaciones: b.habitaciones, moneda: b.moneda, url: b.url,
@@ -40,7 +50,7 @@ export function exportarMuestra(db, busquedaId, snapshotId, dir) {
     totalDisponibles: snap.total_disponibles,
     paginas: snap.paginas,
     propiedades: filas.map((f) => Object.fromEntries(CAMPOS.map((k) => [k, f[k] ?? null]))),
-  }));
+  })));
   return destino;
 }
 
@@ -51,7 +61,7 @@ function archivosDe(dir) {
     const carpeta = path.join(dir, noche);
     if (!fs.statSync(carpeta).isDirectory()) continue;
     for (const f of fs.readdirSync(carpeta)) {
-      if (f.endsWith('.json')) salida.push(path.join(carpeta, f));
+      if (f.endsWith('.json') || f.endsWith('.json.gz')) salida.push(path.join(carpeta, f));
     }
   }
   return salida.sort();
@@ -66,7 +76,7 @@ export function importarSerie(db, dir) {
 
   for (const archivo of archivosDe(dir)) {
     let m;
-    try { m = JSON.parse(fs.readFileSync(archivo, 'utf8')); } catch { rotas++; continue; }
+    try { m = leerMuestra(archivo); } catch { rotas++; continue; }
     if (!m?.tomado || !m.busqueda?.checkIn) { rotas++; continue; }
 
     const b = DB.guardarBusqueda(db, m.busqueda);

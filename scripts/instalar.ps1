@@ -23,7 +23,7 @@ if ([int]$version -lt 22) {
   exit 1
 }
 
-Paso "1/5" "Dependencias (esto tarda unos minutos)"
+Paso "1/4" "Dependencias (esto tarda unos minutos)"
 npm install --silent
 if ($LASTEXITCODE -ne 0) { Write-Host "Fallo npm install" -ForegroundColor Red; exit 1 }
 
@@ -43,48 +43,17 @@ if ($LASTEXITCODE -ne 0) {
   Write-Host "    Ya estaba"
 }
 
-Paso "2/5" "Recuperando las muestras ya guardadas"
+Paso "2/4" "Recuperando las muestras ya guardadas"
 & node bin/agoda.mjs sincronizar
 
-# --- 3. El comando que va a correr el programador --------------------------
-Paso "3/5" "Preparando la tarea"
-$filtros = '--moneda USD --tipo depto,casa --zona nunez,belgrano,palermo,recoleta --paginas todas --silencioso --serie datos'
+# --- 3 y 4. El comando de cada hora y la tarea -----------------------------
+Paso "3/4" "Preparando y registrando la tarea (11 a 23, cada hora)"
+# Todo esto vive en tarea.ps1, que tambien sirve para rehacer la tarea sola sin
+# volver a pasar por la instalacion entera.
+& (Join-Path $PSScriptRoot 'tarea.ps1')
+if ($LASTEXITCODE -ne 0) { Write-Host "No pude registrar la tarea" -ForegroundColor Red; exit 1 }
 
-# El Programador de tareas de Windows se lleva mal con las comillas, asi que la
-# tarea llama a un .cmd en vez de a una linea larga.
-#
-# Una sola tarea con las dos noches, una atras de la otra: la de hoy va segunda y
-# arma la pagina con las dos solapas, asi queda todo en un archivo y con los dos
-# precios de la misma hora. Con dos tareas separadas se pisaban entre ellas.
-$cmd = Join-Path $raiz 'scripts\muestra.cmd'
-@"
-@echo off
-cd /d "$raiz"
-set AGODA_TZ=America/Argentina/Buenos_Aires
-"$node" bin\agoda.mjs buscar "Buenos Aires" $filtros --noche 2026-09-04 >> data\agoda.log 2>&1
-"$node" bin\agoda.mjs buscar "Buenos Aires" $filtros --noche hoy --pestanas 2026-09-04 --html "reportes\hoy.html" >> data\agoda.log 2>&1
-"@ | Set-Content -Path $cmd -Encoding ASCII
-Write-Host "    $cmd"
-
-Paso "4/5" "Registrando en el Programador de tareas (11 a 23, cada hora)"
-# Las versiones viejas dejaban dos tareas separadas; si estan, sacarlas.
-foreach ($viejo in @('agoda-hoy', 'agoda-viernes')) {
-  schtasks /query /tn $viejo 2>$null | Out-Null
-  if ($LASTEXITCODE -eq 0) {
-    schtasks /delete /tn $viejo /f | Out-Null
-    Write-Host "    saque la tarea vieja $viejo"
-  }
-}
-foreach ($v in @('muestra-hoy.cmd', 'muestra-viernes.cmd')) {
-  Remove-Item -Path (Join-Path $raiz "scripts\$v") -ErrorAction SilentlyContinue
-}
-
-# /ri 60 /du 12:00 desde las 11:00 => corre 11, 12, ... 23
-schtasks /create /tn agoda /tr "`"$cmd`"" /sc DAILY /st 11:00 /ri 60 /du 12:00 /f | Out-Null
-if ($LASTEXITCODE -ne 0) { Write-Host "    No pude registrar la tarea" -ForegroundColor Red; exit 1 }
-Write-Host "    agoda: todos los dias, cada hora de 11 a 23" -ForegroundColor Green
-
-Paso "5/5" "Primera muestra, para verificar que anda"
+Paso "4/4" "Primera muestra, para verificar que anda"
 $env:AGODA_TZ = 'America/Argentina/Buenos_Aires'
 & node bin/agoda.mjs buscar "Buenos Aires" --moneda USD --paginas todas --silencioso --serie datos --pestanas 2026-09-04 --html reportes\hoy.html
 

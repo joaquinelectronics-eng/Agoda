@@ -67,6 +67,22 @@ compu esté prendida en la franja que sigas.
 Para pararlo: `node bin/agoda.mjs programar --quitar --todo`, o en Windows
 `schtasks /delete /tn agoda /f`.
 
+### Rehacer solo la tarea (Windows)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\tarea.ps1
+```
+
+Regenera el comando de cada hora y vuelve a registrar la tarea, sin pasar por la
+instalación entera. Al final te muestra qué programa quedó configurado y
+verifica que exista.
+
+Usa `Register-ScheduledTask` y no `schtasks.exe` a propósito: al pasarle el path
+entre comillas, PowerShell vuelve a citar el argumento y `schtasks` termina
+guardando la acción **sin** comillas. Con un usuario como `acer nitro` eso deja
+la tarea intentando ejecutar `C:\Users\acer` y fallando con `0x80070002` a cada
+hora, sin escribir nada en el registro — se ve sólo en `LastTaskResult`.
+
 ### Que la compu se despierte sola (Windows)
 
 Si no querés tenerla prendida toda la franja:

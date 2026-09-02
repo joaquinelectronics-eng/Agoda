@@ -13,7 +13,14 @@ on:
     inputs:
       horas:
         description: Cuantas horas quedarse muestreando (max 5.5)
-        default: '5.5'
+        default: '0.92'
+
+  # La cadena: esta tanda dura una hora, al terminar corre muestra.yml (que
+  # publica la pagina) y al terminar esa vuelve a arrancar esta. Asi se publica
+  # una vez por hora sin depender de ningun programador de tareas.
+  workflow_run:
+    workflows: [muestra]
+    types: [completed]
 
 concurrency:
   group: recolectar          # propio, para no bloquear a muestra.yml
@@ -57,7 +64,21 @@ jobs:
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
 
-          fin=$(awk -v h="${{ inputs.horas }}" 'BEGIN{printf "%d", systime() + h*3600}')
+          # Sin inputs (cuando la dispara la cadena) es una hora.
+          horas="${{ inputs.horas }}"
+          fin=$(awk -v h="${horas:-0.92}" 'BEGIN{printf "%d", systime() + h*3600}')
+
+          # Fuera de la franja no tiene sentido muestrear, pero tampoco terminar
+          # enseguida: eso haria girar la cadena cientos de veces de madrugada.
+          # Mejor dormir hasta que abra (o hasta el tope del job) y salir.
+          hora=$(date +%-H)
+          if [ "$hora" -ge 0 ] && [ "$hora" -lt 11 ]; then
+            faltan=$(( ($(date -d 'today 11:00' +%s) - $(date +%s)) ))
+            [ "$faltan" -gt 19800 ] && faltan=19800   # 5,5 h, tope del job
+            echo "Fuera de la franja. Duermo $((faltan / 60)) minutos."
+            sleep "$faltan"
+            exit 0
+          fi
 
           while [ "$(date +%s)" -lt "$fin" ]; do
             hora=$(date +%-H)

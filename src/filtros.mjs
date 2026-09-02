@@ -11,6 +11,22 @@ export const GRUPOS_TIPO = {
   hostel:  [33],
   bb:      [32, 111, 108],
 };
+/**
+ * Con lo que abre la pagina si no se le dice otra cosa. No recorta los datos:
+ * son los chips que arrancan marcados, y se destildan con un click.
+ *
+ * Estaba antes solo en las opciones que le pasaba la tarea programada, asi que
+ * cualquier reporte generado a mano abria sin nada marcado.
+ *
+ * "depto" ya incluye Apartamento con servicio (120), y "casa" incluye Casa
+ * entera (131). Lo que queda afuera: hoteles, hostels, B&B y "Estancia en una
+ * familia" (el chip "homestay"), que es alojarse en la casa de alguien.
+ */
+export const MIS_FILTROS = {
+  tipo: 'depto,casa',
+  zona: 'nunez,belgrano,palermo,recoleta',
+};
+
 GRUPOS_TIPO.apartamento = GRUPOS_TIPO.depto;
 GRUPOS_TIPO.apart = GRUPOS_TIPO.depto;
 GRUPOS_TIPO.deptos = GRUPOS_TIPO.depto;
@@ -51,8 +67,11 @@ export function valor(fila) {
 
 function coincideZona(fila, lista) {
   const z = normalizar(fila.zona);
-  const n = normalizar(fila.nombre);
-  return lista.some((t) => z.includes(t) || n.includes(t));
+  // El nombre solo cuenta cuando Agoda no dijo el barrio. Mirandolo siempre, un
+  // "depto a 5 minutos de Palermo" que esta en Almagro entraba como Palermo, y
+  // el filtro de zona dejaba de querer decir algo.
+  const donde = z || normalizar(fila.nombre);
+  return lista.some((t) => donde.includes(t));
 }
 
 /**

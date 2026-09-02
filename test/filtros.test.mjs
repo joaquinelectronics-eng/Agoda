@@ -74,3 +74,16 @@ test('los nulos van al final, nunca primeros', () => {
   const e = enriquecer(filtrar(filas, { incluirNoDisponibles: true, incluirSinPrecio: true }), {});
   assert.equal(ordenar(e, 'precio').at(-1).property_id, 4);
 });
+
+test('la zona no la decide el nombre de la publicacion', () => {
+  const filas = [
+    { property_id: 1, nombre: 'Depto luminoso', zona: 'Palermo', por_noche: 50, disponible: 1 },
+    { property_id: 2, nombre: 'Depto a 5 minutos de Palermo', zona: 'Almagro', por_noche: 50, disponible: 1 },
+    { property_id: 3, nombre: 'Loft en Palermo Soho', zona: null, por_noche: 50, disponible: 1 },
+  ];
+  const nombres = filtrar(filas, { zona: 'palermo' }).map((f) => f.property_id);
+
+  assert.ok(nombres.includes(1), 'el que Agoda ubica en Palermo');
+  assert.ok(!nombres.includes(2), 'este esta en Almagro: el nombre no lo muda de barrio');
+  assert.ok(nombres.includes(3), 'sin barrio de Agoda, el nombre es lo unico que hay');
+});

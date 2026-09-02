@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import * as DB from './db.mjs';
 import { abrirNavegador } from './browser.mjs';
 import { construirUrl, leerUrl, ajustarUrl, resolverDestino, scrapear } from './agoda.mjs';
-import { filtrar, enriquecer, ordenar, parsearCoords, idsDeTipo } from './filtros.mjs';
+import { filtrar, enriquecer, ordenar, parsearCoords, idsDeTipo, MIS_FILTROS } from './filtros.mjs';
 import { compararConDiaAnterior, indicePorPropiedad } from './comparar.mjs';
 import { analizarHorarios, nochesDelPerfil } from './horarios.mjs';
 import { existsSync, readFileSync } from 'node:fs';
@@ -502,15 +502,20 @@ function preseleccionar(filas, op, { silencioso = false } = {}) {
     cancelacionGratis: op['cancelacion-gratis'] === true,
   };
 
-  const ids = idsDeTipo(op.tipo);
+  // Sin --tipo/--zona valen los de siempre: que la pagina abra util aunque el
+  // reporte se genere a mano.
+  const tipoPedido = op.tipo ?? MIS_FILTROS.tipo;
+  const zonaPedida = op.zona ?? MIS_FILTROS.zona;
+
+  const ids = idsDeTipo(tipoPedido);
   if (ids) {
     const nombres = new Set();
     for (const f of filas) if (ids.has(f.tipo_id ?? f.tipoId)) nombres.add(OUT.tipoCorto(f.tipo));
     pre.tipos = [...nombres];
   }
 
-  if (op.zona) {
-    const pedidas = String(op.zona).split(',').map(normalizar).filter(Boolean);
+  if (zonaPedida) {
+    const pedidas = String(zonaPedida).split(',').map(normalizar).filter(Boolean);
     const nombres = new Set();
     for (const f of filas) {
       if (f.zona && pedidas.some((t) => normalizar(f.zona).includes(t))) nombres.add(f.zona);

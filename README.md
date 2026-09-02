@@ -67,6 +67,22 @@ compu esté prendida en la franja que sigas.
 Para pararlo: `node bin/agoda.mjs programar --quitar --todo`, o en Windows
 `schtasks /delete /tn agoda /f`.
 
+### Que la compu se despierte sola (Windows)
+
+Si no querés tenerla prendida toda la franja:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\despertar.ps1
+```
+
+Le pone a la tarea el permiso de **despertar la máquina**, deja que corra con
+batería y, si a una hora estaba apagada, que tome esa muestra al volver. También
+habilita los temporizadores de reactivación en el plan de energía: sin eso
+Windows los ignora en silencio.
+
+Después suspendé la compu en vez de apagarla. **Desde apagada no se despierta**:
+eso no lo arregla ningún ajuste.
+
 ### En un servidor, para que no dependa de tu compu
 
 Una tarea local solo corre si la máquina está prendida a esa hora. En un servidor

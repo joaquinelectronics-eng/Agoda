@@ -111,6 +111,13 @@ Listo. De aca en mas se actualiza solo, cada hora de 11 a 23.
   Ver la tarea:  schtasks /query /tn agoda
   Para pararlo:  schtasks /delete /tn agoda /f
 
-La computadora tiene que estar prendida en esa franja. Si esta apagada o
-suspendida a una hora, esa muestra se pierde y sigue con la siguiente.
+Si no queres tener la compu prendida toda la franja, corre ademas:
+
+  powershell -ExecutionPolicy Bypass -File scripts\despertar.ps1
+
+y suspendela en vez de apagarla: se despierta sola a cada hora, toma la muestra
+y vuelve a dormirse.
+
+Si la computadora esta apagada a una hora, esa muestra se pierde y sigue con la
+siguiente.
 "@ -ForegroundColor Green

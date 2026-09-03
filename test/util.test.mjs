@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cuando } from '../src/salida.mjs';
+import vm from 'node:vm';
+import { cuando, reporteHtml } from '../src/salida.mjs';
 import { parseFecha, addDays, distanciaKm, normalizar, sparkline, fmtPrecio } from '../src/util.mjs';
 import { leerUrl, ajustarUrl, construirUrl } from '../src/agoda.mjs';
 
@@ -134,4 +135,23 @@ test('la hora de la pagina va en 24 horas y con la zona', () => {
   } finally {
     if (previa === undefined) delete process.env.TZ; else process.env.TZ = previa;
   }
+});
+
+test('el javascript de la pagina compila, y trae la estrella de favoritos', () => {
+  // Vale la pena probarlo: el script de la pagina se arma dentro de un template
+  // literal, asi que un "\n" mal escapado no rompe nada al generar el HTML pero
+  // deja la pagina en blanco al abrirla. Ya paso una vez.
+  const html = reporteHtml([{
+    busqueda: { check_in: '2026-09-04', los: 1, moneda: 'USD', adultos: 2, ciudad: 'Buenos Aires' },
+    filas: [{ id: 1, nombre: 'Depto lindo', precio: 50, tipo: 'Apartamento', zona: 'Palermo' }],
+    historiales: {},
+  }]);
+
+  const trozos = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  assert.ok(trozos.length, 'la pagina tiene que traer su script');
+  for (const js of trozos) assert.doesNotThrow(() => new vm.Script(js), 'el script no compila');
+
+  assert.match(html, /id="barraFav"/, 'la barra de favoritos');
+  assert.match(html, /data-fav=/, 'la estrella en cada ficha');
+  assert.match(html, /data-tachar=/, 'y la cruz, que no se puede haber perdido');
 });

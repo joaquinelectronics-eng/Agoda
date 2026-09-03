@@ -370,6 +370,21 @@ const ESTILOS = `
     display:flex; align-items:center; justify-content:center;
   }
   .ficha:hover .tachar, .tachar:focus-visible{opacity:1}
+  /* La estrella va del otro lado de la foto y, si esta marcada, se queda a la
+     vista aunque no pases por encima: es la senal de que ese ya lo elegiste. */
+  .fav{
+    position:absolute; top:8px; left:8px; z-index:3;
+    width:26px; height:26px; border-radius:50%; cursor:pointer;
+    border:1px solid rgba(255,255,255,.45); background:rgba(0,0,0,.42); color:#fff;
+    font-size:14px; line-height:1; padding:0; opacity:0; transition:opacity .14s ease;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .ficha:hover .fav, .fav:focus-visible{opacity:1}
+  .fav[aria-pressed="true"]{opacity:1; background:#f0a020; border-color:#f0a020; color:#1a1200}
+  @media (hover:none){ .fav{opacity:.85} }
+  tr .fav{position:static; opacity:.5; width:22px; height:22px; font-size:12px; display:inline-flex}
+  tr:hover .fav, tr .fav[aria-pressed="true"]{opacity:1}
+  .ficha.elegida{border-color:#f0a020; box-shadow:0 0 0 1px #f0a020, var(--sombra)}
   .tachar:hover{background:#c0392b; border-color:#c0392b}
   /* En pantalla tactil no hay hover: que se vea siempre. */
   @media (hover:none){ .tachar{opacity:.85} }
@@ -711,6 +726,7 @@ ${pestanas.length > 1 ? `<div class="solapas" role="tablist">${solapas}</div>` :
     <label class="marca" id="marcaAyer" hidden><input type="checkbox" id="fayer"> solo más baratos que la noche anterior</label>
   </div>
 
+  <div class="grupo barraDesc" id="barraFav" hidden></div>
   <div class="grupo barraDesc" id="barraDesc" hidden></div>
 </div>
 
@@ -737,7 +753,8 @@ var CLAVE = 'agoda-filtros-' + ${JSON.stringify(pestanas.map((p) => p.checkIn).j
 var ENMARCADO = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
 
 var VACIO = { pestana: PESTANAS[0].id, tipos:[], zonas:[], max:null, nota:null, reviews:null, canc:false,
-              baja:false, mejorQueAyer:false, texto:'', conImpuestos:true, vista:'fichas', orden:'final', asc:true };
+              baja:false, mejorQueAyer:false, texto:'', conImpuestos:true, vista:'fichas', orden:'final', asc:true,
+              soloFavoritos:false };
 var estado = Object.assign({}, VACIO, ${JSON.stringify(estadoInicial)});
 
 try {
@@ -768,6 +785,18 @@ function guardarDescartados() {
 }
 function estaDescartado(d) { return Object.prototype.hasOwnProperty.call(descartados, String(d.id)); }
 
+// Los favoritos, con la misma clave fija que los descartados: la de los filtros
+// lleva las noches adentro y cambia todos los dias.
+var CLAVE_FAV = 'agoda-favoritos';
+var favoritos = {};
+try { favoritos = JSON.parse(localStorage.getItem(CLAVE_FAV)) || {}; } catch (e) { favoritos = {}; }
+
+function guardarFavoritos() {
+  try { localStorage.setItem(CLAVE_FAV, JSON.stringify(favoritos)); } catch (e) {}
+}
+function esFavorito(d) { return Object.prototype.hasOwnProperty.call(favoritos, String(d.id)); }
+function idsFavoritos() { return Object.keys(favoritos); }
+
 function $(id) { return document.getElementById(id); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function norm(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase(); }
@@ -793,6 +822,7 @@ function curva(h, ancho) {
 function filtrados() {
   return activa().datos.filter(function (d) {
     var p = precioDe(d);
+    if (estado.soloFavoritos) return esFavorito(d);
     if (!verDescartados && estaDescartado(d)) return false;
     if (estado.tipos.length && estado.tipos.indexOf(d.tipo) < 0) return false;
     if (estado.zonas.length && estado.zonas.indexOf(d.zona) < 0) return false;
@@ -860,7 +890,12 @@ function ficha(d) {
   var cruz = '<button type="button" class="tachar" data-tachar="' + esc(d.id) + '" ' +
     'title="No mostrarme mas este" aria-label="Descartar ' + esc(d.nombre) + '">' +
     (estaDescartado(d) ? '↩' : '✕') + '</button>';
-  return '<article class="ficha' + (estaDescartado(d) ? ' fuera' : '') + '">' + cruz +
+  var estrella = '<button type="button" class="fav" data-fav="' + esc(d.id) + '" ' +
+    'aria-pressed="' + (esFavorito(d) ? 'true' : 'false') + '" ' +
+    'title="Guardar en favoritos" aria-label="Favorito: ' + esc(d.nombre) + '">' +
+    (esFavorito(d) ? '★' : '☆') + '</button>';
+  return '<article class="ficha' + (estaDescartado(d) ? ' fuera' : '') +
+    (esFavorito(d) ? ' elegida' : '') + '">' + estrella + cruz +
     '<a class="foto" ' + ancla + ' aria-label="Abrir ' + esc(d.nombre) + ' en Agoda">' + foto +
       '<span class="sello">' + fmt(precioDe(d)) + '<span class="moneda">' + p.moneda + '</span></span>' +
       recargo + baja +
@@ -941,6 +976,9 @@ function fila(d, i) {
     '<td style="color:var(--muted)">' + esc(d.tipo) + '</td><td>' + esc(d.zona) + '</td>' +
     '<td><a href="' + esc(d.url) + '" target="_blank" rel="noopener noreferrer">' + esc(d.nombre) + '</a>' +
       '<button type="button" class="copiar" data-url="' + esc(d.url) + '" title="Copiar el link de Agoda">⧉</button>' +
+      '<button type="button" class="fav" data-fav="' + esc(d.id) + '" ' +
+        'aria-pressed="' + (esFavorito(d) ? 'true' : 'false') + '" title="Guardar en favoritos">' +
+        (esFavorito(d) ? '★' : '☆') + '</button>' +
       '<button type="button" class="tachar" data-tachar="' + esc(d.id) + '" title="No mostrarme mas este">' +
         (estaDescartado(d) ? '↩' : '✕') + '</button>' +
       etiquetasDe(d) + '</td>' +
@@ -1008,6 +1046,58 @@ function pintarBarraDesc() {
   });
 }
 
+function pintarBarraFav() {
+  var ids = idsFavoritos();
+  var barra = $('barraFav');
+  // Si estas viendo solo favoritos y sacas el ultimo, la barra tiene que seguir
+  // para poder volver: si no quedas en una pantalla vacia sin salida.
+  barra.hidden = ids.length === 0 && !estado.soloFavoritos;
+  if (barra.hidden) return;
+
+  barra.innerHTML =
+    '<span>★ <b>' + ids.length + '</b> favorito' + (ids.length === 1 ? '' : 's') + '</span>' +
+    '<button type="button" id="fSolo">' + (estado.soloFavoritos ? 'ver todo' : 'ver solo estos') + '</button>' +
+    (ids.length ? '<button type="button" id="fLinks" title="Los links de Agoda, uno por linea">copiar los links</button>' : '') +
+    (ids.length ? '<button type="button" id="fVaciar" class="textual">vaciar</button>' : '');
+
+  $('fSolo').addEventListener('click', function () { estado.soloFavoritos = !estado.soloFavoritos; pintar(); });
+  var links = $('fLinks');
+  if (links) links.addEventListener('click', function (ev) {
+    var todas = PESTANAS.reduce(function (acc, p) { return acc.concat(p.datos); }, []);
+    var urls = [];
+    idsFavoritos().forEach(function (id) {
+      for (var i = 0; i < todas.length; i++) {
+        if (String(todas[i].id) === id) { if (urls.indexOf(todas[i].url) < 0) urls.push(todas[i].url); break; }
+      }
+    });
+    copiarYAvisar(urls.join('\\n'), ev.currentTarget);
+  });
+  var vaciar = $('fVaciar');
+  if (vaciar) vaciar.addEventListener('click', function () {
+    favoritos = {};
+    estado.soloFavoritos = false;
+    guardarFavoritos(); pintar();
+  });
+}
+
+function marcarFavorito(id) {
+  var clave = String(id);
+  if (esFavorito({ id: clave })) {
+    delete favoritos[clave];
+    avisar('Sacado de favoritos.', true);
+  } else {
+    var d = activa().datos.filter(function (x) { return String(x.id) === clave; })[0];
+    favoritos[clave] = d ? d.nombre : '';
+    // Marcarlo como favorito lo saca de los descartados: tenerlo en las dos
+    // listas al mismo tiempo no quiere decir nada.
+    delete descartados[clave];
+    guardarDescartados();
+    avisar('★ Guardado. Van ' + idsFavoritos().length + '.', true);
+  }
+  guardarFavoritos();
+  pintar();
+}
+
 function tachar(id) {
   var clave = String(id);
   if (Object.prototype.hasOwnProperty.call(descartados, clave)) {
@@ -1049,6 +1139,7 @@ function pintar() {
 
   if (fichas) { $('rejilla').innerHTML = f.map(ficha).join(''); $('cuerpoTabla').innerHTML = ''; }
   else { cabeceraTabla(); $('cuerpoTabla').innerHTML = f.map(fila).join(''); $('rejilla').innerHTML = ''; }
+  pintarBarraFav();
   pintarBarraDesc();
   guardar();
 }
@@ -1183,6 +1274,11 @@ function copiarYAvisar(url, boton) {
   });
 }
 document.addEventListener('click', function (ev) {
+  var estrella = ev.target.closest ? ev.target.closest('.fav') : null;
+  if (estrella) {
+    ev.preventDefault(); ev.stopPropagation();
+    return marcarFavorito(estrella.dataset.fav);
+  }
   var cruz = ev.target.closest ? ev.target.closest('.tachar') : null;
   if (cruz) {
     ev.preventDefault(); ev.stopPropagation();

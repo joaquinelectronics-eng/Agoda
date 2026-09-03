@@ -48,7 +48,11 @@ CREATE TABLE IF NOT EXISTS snapshots (
   tomado            TEXT NOT NULL,
   n                 INTEGER,
   total_disponibles INTEGER,
-  paginas           INTEGER
+  paginas           INTEGER,
+  -- 'celular' o 'pc': Agoda cobra menos al telefono (mediana 9% menos en las
+  -- que difieren), asi que mezclar las dos fuentes inventa bajadas que no
+  -- existen. Queda guardado para poder avisar donde cambio.
+  origen            TEXT
 );
 
 CREATE TABLE IF NOT EXISTS precios (
@@ -91,7 +95,16 @@ export function abrirDb(ruta = rutaDb()) {
   db.exec('PRAGMA busy_timeout = 15000;');
   db.exec('PRAGMA foreign_keys = ON;');
   db.exec(ESQUEMA);
+  migrar(db);
   return db;
+}
+
+// CREATE TABLE IF NOT EXISTS no agrega columnas nuevas a una base que ya existe.
+// Sin esto, quien tenga una base de antes (la de la maquina del usuario, sin ir
+// mas lejos) se come un "no such column" en la proxima busqueda.
+function migrar(db) {
+  const columnas = db.prepare('PRAGMA table_info(snapshots)').all().map((c) => c.name);
+  if (!columnas.includes('origen')) db.exec('ALTER TABLE snapshots ADD COLUMN origen TEXT');
 }
 
 export function claveBusqueda({ ciudadId, checkIn, los, adultos, ninos, habitaciones, moneda }) {
@@ -127,7 +140,7 @@ export function listarBusquedas(db) {
 const b2i = (v) => (v ? 1 : 0);
 
 /** Guarda un snapshot completo (propiedades + precios) en una transaccion. */
-export function guardarSnapshot(db, busquedaId, propiedades, { totalDisponibles = null, paginas = null } = {}) {
+export function guardarSnapshot(db, busquedaId, propiedades, { totalDisponibles = null, paginas = null, origen = null } = {}) {
   const tomado = ahoraISO();
   const upProp = db.prepare(`
     INSERT INTO propiedades (property_id, nombre, tipo_id, tipo, familia, estrellas, zona, ciudad, ciudad_id, pais, lat, lon, url, imagen, nota, reviews, actualizada)
@@ -147,8 +160,8 @@ export function guardarSnapshot(db, busquedaId, propiedades, { totalDisponibles 
 
   db.exec('BEGIN');
   try {
-    const info = db.prepare('INSERT INTO snapshots (busqueda_id, tomado, n, total_disponibles, paginas) VALUES (?,?,?,?,?)')
-      .run(busquedaId, tomado, propiedades.length, totalDisponibles, paginas);
+    const info = db.prepare('INSERT INTO snapshots (busqueda_id, tomado, n, total_disponibles, paginas, origen) VALUES (?,?,?,?,?,?)')
+      .run(busquedaId, tomado, propiedades.length, totalDisponibles, paginas, origen);
     const snapshotId = Number(info.lastInsertRowid);
 
     for (const p of propiedades) {
@@ -174,6 +187,12 @@ export function listarSnapshots(db, busquedaId, limite = 50) {
   return db.prepare('SELECT * FROM snapshots WHERE busqueda_id = ? ORDER BY tomado DESC, id DESC LIMIT ?').all(busquedaId, limite);
 }
 
+/** De donde salio un snapshot: 'celular' o 'pc'. Las viejas no lo dicen y son de pc. */
+export function origenDeSnapshot(db, snapshotId) {
+  const r = db.prepare('SELECT origen FROM snapshots WHERE id = ?').get(snapshotId);
+  return r ? (r.origen ?? 'pc') : null;
+}
+
 /** Filas de un snapshot, con los datos de la propiedad ya pegados. */
 export function filasSnapshot(db, snapshotId) {
   return db.prepare(`
@@ -188,7 +207,7 @@ export function filasSnapshot(db, snapshotId) {
  * Resumen de evolucion por propiedad para una busqueda:
  * primer precio visto, maximo, minimo, ultimo, y cuanto bajo.
  */
-export function evolucion(db, busquedaId, { desdeHoras = null } = {}) {
+export function evolucion(db, busquedaId, { desdeHoras = null, origen = null } = {}) {
   const corte = desdeHoras ? new Date(Date.now() - desdeHoras * 3600_000).toISOString() : null;
   return db.prepare(`
     WITH obs AS (
@@ -200,6 +219,10 @@ export function evolucion(db, busquedaId, { desdeHoras = null } = {}) {
       JOIN snapshots s ON s.id = pr.snapshot_id
       WHERE s.busqueda_id = ? AND pr.por_noche IS NOT NULL
         AND (? IS NULL OR s.tomado >= ?)
+        -- Solo lo comparable: un precio de celular contra uno de pc inventa una
+        -- bajada del 9% que nunca ocurrio. Las muestras viejas no tienen el
+        -- campo y son todas de pc.
+        AND (? IS NULL OR COALESCE(s.origen, 'pc') = ?)
     ),
     agg AS (
       SELECT property_id, MIN(por_noche) AS minimo, MAX(por_noche) AS maximo,
@@ -215,7 +238,7 @@ export function evolucion(db, busquedaId, { desdeHoras = null } = {}) {
     JOIN propiedades p ON p.property_id = agg.property_id
     JOIN obs ini ON ini.property_id = agg.property_id AND ini.rn_ini = 1
     JOIN obs fin ON fin.property_id = agg.property_id AND fin.rn_fin = 1
-  `).all(busquedaId, corte, corte);
+  `).all(busquedaId, corte, corte, origen, origen);
 }
 
 export function historial(db, busquedaId, propertyId) {

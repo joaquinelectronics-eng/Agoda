@@ -49,6 +49,7 @@ export function exportarMuestra(db, busquedaId, snapshotId, dir) {
     tomado: snap.tomado,
     totalDisponibles: snap.total_disponibles,
     paginas: snap.paginas,
+    origen: snap.origen ?? null,
     propiedades: filas.map((f) => Object.fromEntries(CAMPOS.map((k) => [k, f[k] ?? null]))),
   })));
   return destino;
@@ -94,6 +95,7 @@ export function importarSerie(db, dir) {
     }));
     const { snapshotId } = DB.guardarSnapshot(db, b.id, props, {
       totalDisponibles: m.totalDisponibles ?? null, paginas: m.paginas ?? null,
+      origen: m.origen ?? null,
     });
     // La marca de tiempo original es lo que hace comparable una noche con otra.
     db.prepare('UPDATE snapshots SET tomado = ? WHERE id = ?').run(m.tomado, snapshotId);

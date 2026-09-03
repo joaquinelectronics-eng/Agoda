@@ -21,6 +21,12 @@ async function cargarChromium() {
 const UA_DESKTOP =
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
 
+// Agoda no le muestra lo mismo a un telefono que a una computadora, asi que hace
+// falta poder pedir la version movil para comparar contra lo que ve el usuario.
+const UA_MOVIL =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) ' +
+  'Version/17.6 Mobile/15E148 Safari/604.1';
+
 const CANDIDATOS = [
   '/usr/bin/google-chrome',
   '/usr/bin/google-chrome-stable',
@@ -90,7 +96,9 @@ export async function resolverChromium() {
  * Abre navegador + contexto listos para Agoda.
  * Devuelve { browser, ctx, page, cerrar }.
  */
-export async function abrirNavegador({ headful = false, locale = 'es-AR', timezone = 'America/Argentina/Buenos_Aires' } = {}) {
+export async function abrirNavegador({
+  headful = false, locale = 'es-AR', timezone = 'America/Argentina/Buenos_Aires', movil = false,
+} = {}) {
   const chromium = await cargarChromium();
   const executablePath = await resolverChromium();
   if (!executablePath) {
@@ -116,8 +124,10 @@ export async function abrirNavegador({ headful = false, locale = 'es-AR', timezo
   });
 
   const ctx = await browser.newContext({
-    userAgent: UA_DESKTOP,
-    viewport: { width: 1440, height: 900 },
+    userAgent: movil ? UA_MOVIL : UA_DESKTOP,
+    ...(movil
+      ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 }
+      : { viewport: { width: 1440, height: 900 } }),
     locale,
     timezoneId: timezone,
     ignoreHTTPSErrors: Boolean(proxyUrl),

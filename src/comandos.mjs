@@ -114,7 +114,10 @@ async function armarBusqueda(db, page, op, pos) {
 /** Filas del ultimo snapshot con las estadisticas historicas pegadas. */
 function filasConHistoria(db, busquedaId, snapshotId, { desdeHoras = null } = {}) {
   const filas = DB.filasSnapshot(db, snapshotId);
-  const evo = new Map(DB.evolucion(db, busquedaId, { desdeHoras }).map((r) => [r.property_id, r]));
+  // La historia se compara contra muestras de la misma fuente que esta. Agoda le
+  // cobra menos al telefono, asi que mezclar celular con pc marca bajadas falsas.
+  const origen = DB.origenDeSnapshot(db, snapshotId);
+  const evo = new Map(DB.evolucion(db, busquedaId, { desdeHoras, origen }).map((r) => [r.property_id, r]));
   return filas.map((f) => {
     const e = evo.get(f.property_id);
     return {
@@ -191,7 +194,7 @@ export async function cmdBuscar(db, op, pos) {
 }
 
 async function buscarYGuardar(db, op, pos) {
-  const { page, cerrar } = await abrirNavegador({ headful: op.headful === true });
+  const { page, cerrar } = await abrirNavegador({ headful: op.headful === true, movil: op.pc !== true });
   let ctx, datos;
   try {
     ctx = await armarBusqueda(db, page, op, pos);
@@ -215,7 +218,7 @@ async function buscarYGuardar(db, op, pos) {
   });
   const { snapshotId } = op['sin-guardar']
     ? { snapshotId: null }
-    : DB.guardarSnapshot(db, busqueda.id, datos.propiedades, { totalDisponibles: datos.totalDisponibles, paginas: datos.paginas });
+    : DB.guardarSnapshot(db, busqueda.id, datos.propiedades, { totalDisponibles: datos.totalDisponibles, paginas: datos.paginas, origen: op.pc === true ? 'pc' : 'celular' });
 
   // Con --serie, ademas del sqlite queda un archivo por muestra: es lo que
   // sobrevive si la maquina donde corre es efimera.
@@ -375,7 +378,7 @@ export async function cmdSeguir(db, op, pos) {
 
     const marca = new Date();
     let datos, ctx;
-    const { page, cerrar } = await abrirNavegador({ headful: op.headful === true });
+    const { page, cerrar } = await abrirNavegador({ headful: op.headful === true, movil: op.pc !== true });
     try {
       ctx = await armarBusqueda(db, page, op, pos);
       datos = await scrapear(page, ctx.url, { paginas: paginasPedidas(op), barrido: barridoPedido(op), verboso: false });
@@ -390,7 +393,7 @@ export async function cmdSeguir(db, op, pos) {
     }
 
     busqueda = DB.guardarBusqueda(db, { ...ctx, ciudad: datos.ciudad ?? ctx.ciudad, ciudadId: datos.ciudadId ?? ctx.ciudadId });
-    DB.guardarSnapshot(db, busqueda.id, datos.propiedades, { totalDisponibles: datos.totalDisponibles, paginas: datos.paginas });
+    DB.guardarSnapshot(db, busqueda.id, datos.propiedades, { totalDisponibles: datos.totalDisponibles, paginas: datos.paginas, origen: op.pc === true ? 'pc' : 'celular' });
 
     const actuales = new Map(
       enriquecer(filtrar(datos.propiedades, fo), { cerca: fo.cerca }).map((f) => [f.propertyId, f])
@@ -674,7 +677,7 @@ export async function cmdBuscas(db) {
 export async function cmdDestinos(db, op, pos) {
   const texto = pos.join(' ');
   if (!texto) throw new Error('Decime que buscar: agoda destinos "bariloche"');
-  const { page, cerrar } = await abrirNavegador({ headful: op.headful === true });
+  const { page, cerrar } = await abrirNavegador({ headful: op.headful === true, movil: op.pc !== true });
   try {
     const { candidatos, todos } = await resolverDestino(page, texto);
     log('');

@@ -14,6 +14,17 @@
 name: recolectar
 
 on:
+  # Red de seguridad, no el mecanismo principal. Lo normal es que cada tanda
+  # dispare la siguiente al terminar; esto es por si ese disparo falla alguna
+  # vez. El cron de GitHub llega tarde, pero para revivir una cadena cortada
+  # llegar tarde alcanza, y es lo unico que no depende de nosotros.
+  #
+  # Si ya hay una tanda corriendo, esta queda esperando por el grupo de
+  # concurrencia y arranca cuando la otra termina, que es lo que queremos igual.
+  # Nunca se apilan: GitHub deja una sola en espera por grupo.
+  schedule:
+    - cron: '20 * * * *'
+
   workflow_dispatch:
     inputs:
       horas:

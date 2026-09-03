@@ -35,6 +35,10 @@ on:
     types: [completed]
 
   workflow_dispatch:
+    inputs:
+      solo_pagina:
+        description: Rehacer solo la pagina con lo ya guardado, sin buscar en Agoda
+        default: 'false'
 
 # Que dos corridas no se pisen: si una tarda mas de 15 minutos, la siguiente
 # espera en vez de empujar commits sobre la misma rama al mismo tiempo.
@@ -52,6 +56,7 @@ env:
   AGODA_TZ: America/Argentina/Buenos_Aires
   NOCHE_FIJA: '2026-09-04'
   FILTROS: --moneda USD --paginas todas --silencioso --serie datos
+  SOLO: ${{ inputs.solo_pagina }}
 
 jobs:
   muestra:
@@ -73,17 +78,20 @@ jobs:
       - run: npm ci
 
       - name: Navegador (cacheado entre corridas)
+        if: env.SOLO != 'true'
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ hashFiles('package-lock.json') }}
 
-      - run: node node_modules/playwright-core/cli.js install --with-deps chromium
+      - if: env.SOLO != 'true'
+        run: node node_modules/playwright-core/cli.js install --with-deps chromium
 
       - name: Rearmar la base con las muestras ya guardadas
         run: node bin/agoda.mjs sincronizar
 
       - name: La noche fija
+        if: env.SOLO != 'true'
         run: |
           if [[ "$NOCHE_FIJA" < "$(date +%F)" ]]; then
             echo "La noche del $NOCHE_FIJA ya paso; la salteo."
@@ -93,14 +101,26 @@ jobs:
 
       # Va segunda para que la pagina salga con las dos noches de la misma hora.
       - name: Esta noche, y la pagina
+        if: env.SOLO != 'true'
         run: |
           solapa=()
           if [[ ! "$NOCHE_FIJA" < "$(date +%F)" ]]; then solapa=(--pestanas "$NOCHE_FIJA"); fi
           mkdir -p sitio
           node bin/agoda.mjs buscar "Buenos Aires" $FILTROS --noche hoy "${solapa[@]}" --html sitio/index.html
 
+      # El camino corto, para republicar cada hora sin volver a buscar: "reporte"
+      # arma el HTML con lo que ya hay en la base, sin abrir el navegador.
+      - name: Solo la pagina, con lo ya guardado
+        if: env.SOLO == 'true'
+        run: |
+          solapa=()
+          if [[ ! "$NOCHE_FIJA" < "$(date +%F)" ]]; then solapa=(--pestanas "$NOCHE_FIJA"); fi
+          mkdir -p sitio
+          node bin/agoda.mjs reporte --noche hoy "${solapa[@]}" --html sitio/index.html
+
       # Antes de publicar: si algo falla mas adelante, los datos ya estan a salvo.
       - name: Guardar las muestras nuevas
+        if: env.SOLO != 'true'
         run: |
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'

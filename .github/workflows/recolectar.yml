@@ -1,11 +1,16 @@
-# Una sola corrida que se queda andando horas, muestreando cada 15 minutos.
+# Una sola corrida que se queda andando horas, muestreando cada 15 minutos, y
+# que al terminar se vuelve a disparar sola.
 #
-# Por que asi y no con "schedule": el cron de GitHub no disparo ni una vez en
-# una hora, y es sabido que se demora o se saltea corridas. Una corrida larga
-# no depende del scheduler: se arranca una vez y sigue sola.
+# Por que asi y no con "schedule": el cron de GitHub llega tarde y se saltea
+# corridas. Se lo vio disparar una tanda de las 02:30 a las 06:30.
 #
-# Solo junta datos y los sube. La pagina la republica muestra.yml, que corre
-# cuando termina esta o cuando se la dispara a mano.
+# Por que ya no con "workflow_run": la cadena (recolectar -> muestra ->
+# recolectar) anduvo unos eslabones y se corto sola. El 3 de septiembre muestra
+# #16 termino bien a las 14:08 UTC y no salio ninguna recolectar despues.
+#
+# Lo que si funciona es que la corrida se dispare a si misma por la API. El
+# GITHUB_TOKEN no puede despertar workflows con un push, pero workflow_dispatch
+# y repository_dispatch son la excepcion documentada a esa regla.
 name: recolectar
 
 on:
@@ -13,14 +18,7 @@ on:
     inputs:
       horas:
         description: Cuantas horas quedarse muestreando (max 5.5)
-        default: '0.92'
-
-  # La cadena: esta tanda dura una hora, al terminar corre muestra.yml (que
-  # publica la pagina) y al terminar esa vuelve a arrancar esta. Asi se publica
-  # una vez por hora sin depender de ningun programador de tareas.
-  workflow_run:
-    workflows: [muestra]
-    types: [completed]
+        default: '5.4'
 
 concurrency:
   group: recolectar          # propio, para no bloquear a muestra.yml
@@ -28,18 +26,23 @@ concurrency:
 
 permissions:
   contents: write
+  actions: write             # para dispararse de nuevo y para republicar
 
 env:
   TZ: America/Argentina/Buenos_Aires
   AGODA_TZ: America/Argentina/Buenos_Aires
   NOCHE_FIJA: '2026-09-04'
   FILTROS: --moneda USD --paginas todas --silencioso --serie datos
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   recolectar:
     runs-on: ubuntu-latest
     timeout-minutes: 350     # el tope de un job son 6 h
     steps:
+      # Para saber cuanto duro la tanda: $SECONDS se reinicia en cada step.
+      - run: date +%s > /tmp/arranque
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -64,22 +67,30 @@ jobs:
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
 
-          # Sin inputs (cuando la dispara la cadena) es una hora.
-          horas="${{ inputs.horas }}"
-          fin=$(awk -v h="${horas:-0.92}" 'BEGIN{printf "%d", systime() + h*3600}')
+          fin=$(awk -v h="${{ inputs.horas }}" 'BEGIN{printf "%d", systime() + (h==""?5.4:h)*3600}')
+
+          disparar() {   # $1 = archivo del workflow, $2 = json de inputs
+            curl -sS -X POST -o /dev/null -w "  -> %{http_code} $1\n" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H 'Accept: application/vnd.github+json' \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/workflows/$1/dispatches" \
+              -d "{\"ref\":\"$GITHUB_REF_NAME\",\"inputs\":$2}" || true
+          }
 
           # Fuera de la franja no tiene sentido muestrear, pero tampoco terminar
           # enseguida: eso haria girar la cadena cientos de veces de madrugada.
-          # Mejor dormir hasta que abra (o hasta el tope del job) y salir.
+          # Mejor dormir hasta que abra (o hasta el tope del job) y salir; la que
+          # se dispara al final sigue desde ahi.
           hora=$(date +%-H)
-          if [ "$hora" -ge 0 ] && [ "$hora" -lt 11 ]; then
-            faltan=$(( ($(date -d 'today 11:00' +%s) - $(date +%s)) ))
+          if [ "$hora" -lt 11 ]; then
+            faltan=$(( $(date -d 'today 11:00' +%s) - $(date +%s) ))
             [ "$faltan" -gt 19800 ] && faltan=19800   # 5,5 h, tope del job
             echo "Fuera de la franja. Duermo $((faltan / 60)) minutos."
             sleep "$faltan"
             exit 0
           fi
 
+          publicada=''
           while [ "$(date +%s)" -lt "$fin" ]; do
             hora=$(date +%-H)
             if [ "$hora" -ge 11 ] && [ "$hora" -le 23 ]; then
@@ -100,6 +111,15 @@ jobs:
                   sleep $((i * 10))
                 done
               fi
+
+              # Republicar una vez por hora, que es lo que pidio el usuario. Va
+              # en modo solo_pagina: rehace el HTML con lo ya guardado, sin
+              # volver a buscar en Agoda ni instalar el navegador.
+              if [ "$publicada" != "$hora" ]; then
+                echo "Republicando la pagina."
+                disparar muestra.yml '{"solo_pagina":"true"}'
+                publicada="$hora"
+              fi
             else
               echo "$(date '+%H:%M') fuera de la franja de 11 a 23"
             fi
@@ -111,3 +131,29 @@ jobs:
             echo "-- proxima a las $(date -d "@$proximo" '+%H:%M')"
             sleep $(( proximo - ahora ))
           done
+
+      # Lo que mantiene todo vivo. Va con always() porque si la tanda se cae a
+      # la mitad, justamente es cuando hace falta que arranque la siguiente.
+      - name: Disparar la proxima tanda
+        if: always()
+        run: |
+          # Freno de mano: si aparece este archivo, la cadena se corta sola.
+          if [ -f datos/PARAR ]; then
+            echo "Existe datos/PARAR: no disparo la proxima."
+            exit 0
+          fi
+
+          # Si esta corrida duro poco, algo esta mal (falta una dependencia, el
+          # token, la red). Sin esta espera, una tanda que muere en un minuto se
+          # redispara sin parar. Con ella, el peor caso son 4 corridas por hora.
+          duro=$(( $(date +%s) - $(cat /tmp/arranque 2>/dev/null || echo 0) ))
+          if [ "$duro" -lt 600 ]; then
+            echo "La tanda duro ${duro}s: espero 15 minutos antes de seguir."
+            sleep 900
+          fi
+
+          curl -sS -X POST -o /dev/null -w '  -> %{http_code}\n' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/workflows/recolectar.yml/dispatches" \
+            -d "{\"ref\":\"$GITHUB_REF_NAME\",\"inputs\":{\"horas\":\"5.4\"}}"

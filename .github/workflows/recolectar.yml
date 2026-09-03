@@ -42,7 +42,14 @@ permissions:
 env:
   TZ: America/Argentina/Buenos_Aires
   AGODA_TZ: America/Argentina/Buenos_Aires
-  NOCHE_FIJA: '2026-09-04'
+  # Dias de anticipacion a muestrear. Con esto la serie contesta sola "cuantos
+  # dias antes conviene reservar": cada noche queda vista a 7, 5, 3, 2, 1 y 0
+  # dias, y la curva sale de comparar la misma noche consigo misma.
+  #
+  # Los cercanos van en cada vuelta porque es donde se mueve la cosa; los
+  # lejanos una vez por hora, que a 7 dias no cambia nada en 15 minutos.
+  HORIZONTES: '0 1 2'
+  HORIZONTES_LENTOS: '3 5 7'
   FILTROS: --moneda USD --paginas todas --silencioso --serie datos
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -102,6 +109,7 @@ jobs:
           fi
 
           publicada=''
+          lentas=''
           while [ "$(date +%s)" -lt "$fin" ]; do
             hora=$(date +%-H)
             if [ "$hora" -ge 11 ] && [ "$hora" -le 23 ]; then
@@ -109,10 +117,13 @@ jobs:
 
               # Que una noche falle no puede cortar la corrida entera: quedaria
               # sin muestrear el resto de la tarde por un error de un minuto.
-              if [[ ! "$NOCHE_FIJA" < "$(date +%F)" ]]; then
-                node bin/agoda.mjs buscar "Buenos Aires" $FILTROS --noche "$NOCHE_FIJA" || echo "!! fallo la noche fija"
-              fi
-              node bin/agoda.mjs buscar "Buenos Aires" $FILTROS || echo "!! fallo la noche de hoy"
+              lista="$HORIZONTES"
+              [ "$lentas" != "$hora" ] && lista="$HORIZONTES $HORIZONTES_LENTOS" && lentas="$hora"
+              for d in $lista; do
+                noche=$(date -d "+$d day" +%F)
+                node bin/agoda.mjs buscar "Buenos Aires" $FILTROS --noche "$noche" \
+                  || echo "!! fallo la noche +$d ($noche)"
+              done
 
               git add datos
               if ! git diff --cached --quiet; then

@@ -54,7 +54,8 @@ permissions:
 env:
   TZ: America/Argentina/Buenos_Aires
   AGODA_TZ: America/Argentina/Buenos_Aires
-  NOCHE_FIJA: '2026-09-04'
+  # Las noches que muestra la pagina: hoy, manana y pasado.
+  HORIZONTES: '0 1 2'
   FILTROS: --moneda USD --paginas todas --silencioso --serie datos
   SOLO: ${{ inputs.solo_pagina }}
 
@@ -70,6 +71,29 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Este workflow es la red por si el recolector se muere, no un segundo
+      # recolector. Si ya hay una muestra fresca, buscar de nuevo seria pedirle
+      # a Agoda el doble de todo para guardar lo mismo, y lo unico que se gana
+      # es acercarse a que nos corten.
+      - name: ¿Hace falta buscar, o alcanza con republicar?
+        id: falta
+        run: |
+          ultima=$(ls datos/*/*.json.gz 2>/dev/null | sed 's#.*/##' | sort | tail -1)
+          buscar=si
+          if [ -n "$ultima" ]; then
+            iso=$(echo "${ultima%.json.gz}" | sed -E 's/T([0-9]{2})-([0-9]{2})-([0-9]{2})-[0-9]+Z/T\1:\2:\3Z/')
+            edad=$(( $(date +%s) - $(date -d "$iso" +%s) ))
+            echo "La ultima muestra es de hace $((edad / 60)) minutos."
+            [ "$edad" -lt 2400 ] && buscar=no
+          else
+            echo "No hay ninguna muestra todavia."
+          fi
+          # A mano (workflow_dispatch) siempre se busca, salvo que pidan solo la pagina.
+          [ "$GITHUB_EVENT_NAME" = 'workflow_dispatch' ] && buscar=si
+          [ "$SOLO" = 'true' ] && buscar=no
+          echo "buscar=$buscar" >> "$GITHUB_OUTPUT"
+          echo "Busco en Agoda: $buscar"
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -78,49 +102,42 @@ jobs:
       - run: npm ci
 
       - name: Navegador (cacheado entre corridas)
-        if: env.SOLO != 'true'
+        if: steps.falta.outputs.buscar == 'si'
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ hashFiles('package-lock.json') }}
 
-      - if: env.SOLO != 'true'
+      - if: steps.falta.outputs.buscar == 'si'
         run: node node_modules/playwright-core/cli.js install --with-deps chromium
 
       - name: Rearmar la base con las muestras ya guardadas
         run: node bin/agoda.mjs sincronizar
 
-      - name: La noche fija
-        if: env.SOLO != 'true'
+      - name: Las noches
+        if: steps.falta.outputs.buscar == 'si'
         run: |
-          if [[ "$NOCHE_FIJA" < "$(date +%F)" ]]; then
-            echo "La noche del $NOCHE_FIJA ya paso; la salteo."
-            exit 0
-          fi
-          node bin/agoda.mjs buscar "Buenos Aires" $FILTROS --noche "$NOCHE_FIJA"
+          for d in $HORIZONTES; do
+            noche=$(date -d "+$d day" +%F)
+            node bin/agoda.mjs buscar "Buenos Aires" $FILTROS --noche "$noche" || echo "!! fallo la noche +$d ($noche)"
+          done
 
-      # Va segunda para que la pagina salga con las dos noches de la misma hora.
-      - name: Esta noche, y la pagina
-        if: env.SOLO != 'true'
+      - name: La pagina
         run: |
+          # --pestanas toma UNA lista separada por comas, no la bandera repetida.
+          noches=''
+          for d in $HORIZONTES; do
+            [ "$d" = 0 ] && continue
+            noches="${noches:+$noches,}$(date -d "+$d day" +%F)"
+          done
           solapa=()
-          if [[ ! "$NOCHE_FIJA" < "$(date +%F)" ]]; then solapa=(--pestanas "$NOCHE_FIJA"); fi
-          mkdir -p sitio
-          node bin/agoda.mjs buscar "Buenos Aires" $FILTROS --noche hoy "${solapa[@]}" --html sitio/index.html
-
-      # El camino corto, para republicar cada hora sin volver a buscar: "reporte"
-      # arma el HTML con lo que ya hay en la base, sin abrir el navegador.
-      - name: Solo la pagina, con lo ya guardado
-        if: env.SOLO == 'true'
-        run: |
-          solapa=()
-          if [[ ! "$NOCHE_FIJA" < "$(date +%F)" ]]; then solapa=(--pestanas "$NOCHE_FIJA"); fi
+          [ -n "$noches" ] && solapa=(--pestanas "$noches")
           mkdir -p sitio
           node bin/agoda.mjs reporte --noche hoy "${solapa[@]}" --html sitio/index.html
 
       # Antes de publicar: si algo falla mas adelante, los datos ya estan a salvo.
       - name: Guardar las muestras nuevas
-        if: env.SOLO != 'true'
+        if: steps.falta.outputs.buscar == 'si'
         run: |
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'

@@ -108,13 +108,19 @@ jobs:
             exit 0
           fi
 
+          # Rearmar la base UNA vez, no en cada vuelta. Reconstruirla desde los
+          # 4100 archivos ya tarda 6 minutos, y revisarlos de nuevo para no
+          # importar nada, 28 segundos — que crecen todos los dias. Durante la
+          # tanda el unico que escribe es este job, asi que releerlos cada 15
+          # minutos no aporta nada. Si entra una muestra de la red mientras
+          # tanto, la toma la tanda siguiente.
+          node bin/agoda.mjs sincronizar >/dev/null
+
           publicada=''
           lentas=''
           while [ "$(date +%s)" -lt "$fin" ]; do
             hora=$(date +%-H)
             if [ "$hora" -ge 11 ] && [ "$hora" -le 23 ]; then
-              node bin/agoda.mjs sincronizar >/dev/null
-
               # Que una noche falle no puede cortar la corrida entera: quedaria
               # sin muestrear el resto de la tarde por un error de un minuto.
               lista="$HORIZONTES"

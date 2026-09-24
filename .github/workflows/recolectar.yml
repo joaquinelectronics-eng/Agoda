@@ -14,17 +14,9 @@
 name: recolectar
 
 on:
-  # Red de seguridad, no el mecanismo principal. Lo normal es que cada tanda
-  # dispare la siguiente al terminar; esto es por si ese disparo falla alguna
-  # vez. El cron de GitHub llega tarde, pero para revivir una cadena cortada
-  # llegar tarde alcanza, y es lo unico que no depende de nosotros.
-  #
-  # Si ya hay una tanda corriendo, esta queda esperando por el grupo de
-  # concurrencia y arranca cuando la otra termina, que es lo que queremos igual.
-  # Nunca se apilan: GitHub deja una sola en espera por grupo.
-  schedule:
-    - cron: '20 * * * *'
-
+  # Apagado a pedido del usuario el 24/9: con tres semanas de datos ya se sabe
+  # cuando conviene reservar. Queda solo el disparo a mano, por si algun dia
+  # hace falta volver a juntar; para eso tambien hay que borrar datos/PARAR.
   workflow_dispatch:
     inputs:
       horas:
@@ -82,6 +74,10 @@ jobs:
       - name: Muestrear cada 15 minutos
         run: |
           set -u
+          if [ -f datos/PARAR ]; then
+            echo "Existe datos/PARAR: la recoleccion esta apagada."
+            exit 0
+          fi
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
 

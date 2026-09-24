@@ -1,0 +1,5 @@
+Recoleccion apagada a pedido del usuario el 2026-09-24.
+
+Mientras exista este archivo, recolectar.yml no hace nada aunque se lo dispare,
+y la tanda que estaba corriendo no dispara la siguiente. Para volver a juntar
+datos: borrar este archivo y disparar recolectar.yml a mano.

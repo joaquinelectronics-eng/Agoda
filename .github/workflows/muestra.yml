@@ -14,26 +14,8 @@
 name: muestra
 
 on:
-  schedule:
-    # De 11:00 a 23:45 hora de Buenos Aires (UTC-3) => 14:00 a 02:45 UTC.
-    - cron: '*/15 14-23,0-2 * * *'
-
-  # Que entre una muestra nueva alcanza para rehacer la pagina. Sirve de red
-  # cuando el cron de GitHub no dispara, que es bastante seguido.
-  #
-  # No hay bucle: los push que hace este mismo workflow van con GITHUB_TOKEN, y
-  # GitHub no dispara workflows con los push hechos con ese token. Solo lo
-  # despiertan los que vienen de afuera.
-  push:
-    paths:
-      - 'datos/**'
-
-  # Cuando termina una tanda de recoleccion, republicar la pagina con todo lo
-  # que junto.
-  workflow_run:
-    workflows: [recolectar]
-    types: [completed]
-
+  # Apagado a pedido del usuario el 24/9, junto con recolectar.yml. Queda solo
+  # a mano: por ejemplo, para rehacer la pagina con lo ya guardado.
   workflow_dispatch:
     inputs:
       solo_pagina:

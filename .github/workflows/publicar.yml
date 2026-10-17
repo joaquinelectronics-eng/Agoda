@@ -1,0 +1,44 @@
+# Sube sitio/ a GitHub Pages: https://joaquinelectronics-eng.github.io/Agoda/
+#
+# Pedido del usuario: toda pagina que se le genere va ahi. Este workflow no
+# busca nada en Agoda ni rearma la base (eso tarda 6 minutos con 4000+
+# muestras); solo publica el HTML que ya viene commiteado en sitio/. Asi la
+# pagina sale en medio minuto desde que se pushea.
+name: publicar
+
+on:
+  push:
+    paths:
+      - 'sitio/**'
+  workflow_dispatch:
+
+# Dos publicaciones seguidas: vale la ultima.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.pagina.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: sitio
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: sitio
+
+      - id: pagina
+        uses: actions/deploy-pages@v4

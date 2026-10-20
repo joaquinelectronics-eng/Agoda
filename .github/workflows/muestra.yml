@@ -14,8 +14,11 @@
 name: muestra
 
 on:
-  # Apagado a pedido del usuario el 24/9, junto con recolectar.yml. Queda solo
-  # a mano: por ejemplo, para rehacer la pagina con lo ya guardado.
+  # Red por si el recolector se muere: solo busca si la ultima muestra tiene
+  # mas de 40 minutos. Prendido de nuevo el 20/10.
+  schedule:
+    - cron: '*/15 14-23,0-2 * * *'
+
   workflow_dispatch:
     inputs:
       solo_pagina:
@@ -38,6 +41,8 @@ env:
   AGODA_TZ: America/Argentina/Buenos_Aires
   # Las noches que muestra la pagina: hoy, manana y pasado.
   HORIZONTES: '0 1 2'
+  # Si hay noches puntuales por delante, la pagina muestra esas.
+  NOCHES_FIJAS: '2026-10-30 2026-10-31'
   FILTROS: --moneda USD --paginas todas --silencioso --serie datos
   SOLO: ${{ inputs.solo_pagina }}
 
@@ -103,19 +108,33 @@ jobs:
             noche=$(date -d "+$d day" +%F)
             node bin/agoda.mjs buscar "Buenos Aires" $FILTROS --noche "$noche" || echo "!! fallo la noche +$d ($noche)"
           done
+          for noche in $NOCHES_FIJAS; do
+            [[ "$noche" < "$(date +%F)" ]] && continue
+            node bin/agoda.mjs buscar "Buenos Aires" $FILTROS --noche "$noche" || echo "!! fallo la noche fija $noche"
+          done
 
       - name: La pagina
         run: |
           # --pestanas toma UNA lista separada por comas, no la bandera repetida.
-          noches=''
-          for d in $HORIZONTES; do
-            [ "$d" = 0 ] && continue
-            noches="${noches:+$noches,}$(date -d "+$d day" +%F)"
-          done
+          # Si quedan noches fijas por delante, la pagina es de esas; si no, de
+          # hoy, manana y pasado.
+          fijas=()
+          for noche in $NOCHES_FIJAS; do [[ "$noche" < "$(date +%F)" ]] || fijas+=("$noche"); done
+          if [ ${#fijas[@]} -gt 0 ]; then
+            principal=${fijas[0]}
+            noches=$(IFS=,; echo "${fijas[*]:1}")
+          else
+            principal=hoy
+            noches=''
+            for d in $HORIZONTES; do
+              [ "$d" = 0 ] && continue
+              noches="${noches:+$noches,}$(date -d "+$d day" +%F)"
+            done
+          fi
           solapa=()
           [ -n "$noches" ] && solapa=(--pestanas "$noches")
           mkdir -p sitio
-          node bin/agoda.mjs reporte --noche hoy "${solapa[@]}" --html sitio/index.html
+          node bin/agoda.mjs reporte --noche "$principal" "${solapa[@]}" --html sitio/index.html
 
       # Antes de publicar: si algo falla mas adelante, los datos ya estan a salvo.
       - name: Guardar las muestras nuevas

@@ -14,9 +14,12 @@
 name: recolectar
 
 on:
-  # Apagado a pedido del usuario el 24/9: con tres semanas de datos ya se sabe
-  # cuando conviene reservar. Queda solo el disparo a mano, por si algun dia
-  # hace falta volver a juntar; para eso tambien hay que borrar datos/PARAR.
+  # Prendido de nuevo el 20/10 a pedido del usuario (estuvo apagado desde el
+  # 24/9). Lo normal es que cada tanda dispare la siguiente; el cron es la red
+  # por si ese disparo falla. Para apagar: crear datos/PARAR.
+  schedule:
+    - cron: '20 * * * *'
+
   workflow_dispatch:
     inputs:
       horas:
@@ -42,6 +45,9 @@ env:
   # lejanos una vez por hora, que a 7 dias no cambia nada en 15 minutos.
   HORIZONTES: '0 1 2'
   HORIZONTES_LENTOS: '3 5 7'
+  # Noches puntuales que el usuario esta mirando: van en cada vuelta y son las
+  # que muestra la pagina. Las que ya pasaron se saltean solas.
+  NOCHES_FIJAS: '2026-10-30 2026-10-31'
   FILTROS: --moneda USD --paginas todas --silencioso --serie datos
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -125,6 +131,13 @@ jobs:
                 noche=$(date -d "+$d day" +%F)
                 node bin/agoda.mjs buscar "Buenos Aires" $FILTROS --noche "$noche" \
                   || echo "!! fallo la noche +$d ($noche)"
+              done
+              hechas=$(for d in $lista; do date -d "+$d day" +%F; done)
+              for noche in $NOCHES_FIJAS; do
+                [[ "$noche" < "$(date +%F)" ]] && continue
+                grep -qx "$noche" <<<"$hechas" && continue
+                node bin/agoda.mjs buscar "Buenos Aires" $FILTROS --noche "$noche" \
+                  || echo "!! fallo la noche fija $noche"
               done
 
               git add datos

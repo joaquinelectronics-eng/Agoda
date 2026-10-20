@@ -32,6 +32,7 @@ externas.
 
 ## Estado
 
-La recoleccion automatica esta apagada desde el 24/9 (`datos/PARAR`, sin
-crons). Las corridas ahora son a pedido. Las conclusiones de las tres semanas
-de datos (cuando conviene reservar) se las di al usuario en el chat ese dia.
+Recoleccion automatica prendida de nuevo el 20/10 (estuvo apagada del 24/9 al
+20/10). Muestrea los horizontes de siempre mas `NOCHES_FIJAS` (hoy 30 y 31 de
+octubre) en `recolectar.yml` y `muestra.yml`; mientras queden noches fijas por
+delante, la pagina publicada es de esas. Para apagar: crear `datos/PARAR`.

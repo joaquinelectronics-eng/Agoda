@@ -13,7 +13,7 @@ import * as DB from './db.mjs';
 
 const CAMPOS = [
   'property_id', 'nombre', 'tipo_id', 'tipo', 'familia', 'estrellas', 'zona', 'ciudad', 'ciudad_id',
-  'pais', 'lat', 'lon', 'url', 'imagen', 'nota', 'reviews',
+  'pais', 'lat', 'lon', 'url', 'imagen', 'nota', 'reviews', 'pileta',
   'por_noche', 'por_noche_sin_imp', 'total', 'tachado', 'moneda', 'disponible', 'cancelacion',
   'habitaciones_libres',
 ];
@@ -89,6 +89,7 @@ export function importarSerie(db, dir) {
       propertyId: p.property_id, nombre: p.nombre, tipoId: p.tipo_id, tipo: p.tipo, familia: p.familia,
       estrellas: p.estrellas, zona: p.zona, ciudad: p.ciudad, ciudadId: p.ciudad_id, pais: p.pais,
       lat: p.lat, lon: p.lon, url: p.url, imagen: p.imagen, nota: p.nota, reviews: p.reviews,
+      pileta: p.pileta ?? null,
       disponible: p.disponible === 1 || p.disponible === true,
       moneda: p.moneda, porNoche: p.por_noche, porNocheSinImp: p.por_noche_sin_imp, total: p.total,
       tachado: p.tachado, habitacionesLibres: p.habitaciones_libres, cancelacion: p.cancelacion,

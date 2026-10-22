@@ -112,3 +112,15 @@ test('las solapas extra se saltean si esa noche todavia no tiene datos', () => {
   assert.deepEqual(pestanasPedidas(db, { pestanas: '2026-12-25,2026-09-04' }).map((b) => b.id),
     [viernes.id], 'las que si estan siguen saliendo');
 });
+
+test('la pileta sobrevive a una muestra que no la pudo averiguar', () => {
+  const { db } = dbTemporal();
+  const b = DB.guardarBusqueda(db, { ciudadId: 9294, ciudad: 'Buenos Aires', checkIn: '2026-10-30', los: 1,
+    adultos: 2, ninos: 0, habitaciones: 1, moneda: 'USD', url: 'x' });
+  DB.guardarSnapshot(db, b.id, [prop(1, 50, { pileta: 1 }), prop(2, 60, { pileta: 0 })]);
+  // La pasada del filtro fallo: no se sabe. Eso no puede borrar lo que ya se sabia.
+  const { snapshotId } = DB.guardarSnapshot(db, b.id, [prop(1, 52), prop(2, 61)]);
+  const filas = DB.filasSnapshot(db, snapshotId);
+  assert.equal(filas.find((f) => f.property_id === 1).pileta, 1);
+  assert.equal(filas.find((f) => f.property_id === 2).pileta, 0);
+});

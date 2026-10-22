@@ -564,6 +564,7 @@ function filaParaWeb(f, { historiales, fotos, busqueda, anchoFoto, contraAyer })
     url: urlConFechas(f.url, busqueda) ?? '',
     img: (fotos ? fotos.get(mini) : mini) ?? '',
     canc: /free/i.test(f.cancelacion ?? '') ? 1 : 0,
+    pileta: f.pileta ?? null,
     libres: f.habitaciones_libres ?? f.habitacionesLibres ?? null,
     hist: (historiales[id] ?? []).map((p) => p.por_noche),
     ayer: ayer ? ayer.ayer : null,
@@ -722,6 +723,7 @@ ${pestanas.length > 1 ? `<div class="solapas" role="tablist">${solapas}</div>` :
     </select></label>
     <button type="button" class="chip" id="fsentido" title="Invertir el orden">↑ menor primero</button>
     <label class="marca"><input type="checkbox" id="fcanc"> cancelación gratis</label>
+    <label class="marca" title="Según Agoda: pileta del edificio o privada. Si es climatizada no lo dice; eso hay que verlo en la publicación."><input type="checkbox" id="fpileta"> con pileta</label>
     <label class="marca"><input type="checkbox" id="fbaja"> solo los que bajaron hoy</label>
     <label class="marca" id="marcaAyer" hidden><input type="checkbox" id="fayer"> solo más baratos que la noche anterior</label>
   </div>
@@ -752,7 +754,7 @@ var CLAVE = 'agoda-filtros-' + ${JSON.stringify(pestanas.map((p) => p.checkIn).j
 // true si la pagina vive adentro de un iframe: ahi abrir pestanas puede estar prohibido.
 var ENMARCADO = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
 
-var VACIO = { pestana: PESTANAS[0].id, tipos:[], zonas:[], max:null, nota:null, reviews:null, canc:false,
+var VACIO = { pestana: PESTANAS[0].id, tipos:[], zonas:[], max:null, nota:null, reviews:null, canc:false, pileta:false,
               baja:false, mejorQueAyer:false, texto:'', conImpuestos:true, vista:'fichas', orden:'final', asc:true,
               soloFavoritos:false };
 var estado = Object.assign({}, VACIO, ${JSON.stringify(estadoInicial)});
@@ -830,6 +832,7 @@ function filtrados() {
     if (estado.nota != null && (d.nota == null || d.nota < estado.nota)) return false;
     if (estado.reviews != null && d.reviews < estado.reviews) return false;
     if (estado.canc && d.canc !== 1) return false;
+    if (estado.pileta && d.pileta !== 1) return false;
     if (estado.baja && !(d.bajadaPct != null && d.bajadaPct < -0.5)) return false;
     if (estado.mejorQueAyer && !(d.ayerPct != null && d.ayerPct < -0.5)) return false;
     if (estado.texto && norm(d.nombre).indexOf(norm(estado.texto)) < 0) return false;
@@ -855,6 +858,7 @@ function ordenados() {
 function etiquetasDe(d) {
   var t = '';
   if (d.canc) t += '<span class="etiqueta buena">cancelación gratis</span>';
+  if (d.pileta === 1) t += '<span class="etiqueta buena">pileta</span>';
   if (d.libres != null && d.libres <= 3) t += '<span class="etiqueta">' + (d.libres === 1 ? 'queda 1' : 'quedan ' + d.libres) + '</span>';
   return t;
 }
@@ -1158,6 +1162,7 @@ function sincronizar() {
   $('frev').value = estado.reviews == null ? '' : estado.reviews;
   $('ftexto').value = estado.texto;
   $('fcanc').checked = estado.canc;
+  $('fpileta').checked = !!estado.pileta;
   $('fbaja').checked = estado.baja;
   $('fayer').checked = estado.mejorQueAyer;
   $('forden').value = estado.orden;
@@ -1190,6 +1195,7 @@ $('fnota').addEventListener('input', function () { estado.nota = numeroDe(this);
 $('frev').addEventListener('input', function () { estado.reviews = numeroDe(this); pintar(); });
 $('ftexto').addEventListener('input', function () { estado.texto = this.value; pintar(); });
 $('fcanc').addEventListener('change', function () { estado.canc = this.checked; pintar(); });
+$('fpileta').addEventListener('change', function () { estado.pileta = this.checked; pintar(); });
 $('fbaja').addEventListener('change', function () { estado.baja = this.checked; pintar(); });
 $('fayer').addEventListener('change', function () { estado.mejorQueAyer = this.checked; pintar(); });
 $('forden').addEventListener('change', function () { estado.orden = this.value; pintar(); });

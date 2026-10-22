@@ -39,7 +39,10 @@ CREATE TABLE IF NOT EXISTS propiedades (
   imagen       TEXT,
   nota         REAL,
   reviews      INTEGER,
-  actualizada  TEXT
+  actualizada  TEXT,
+  -- 1 si Agoda lo da en el filtro "Piscina" o "Piscina privada", 0 si no,
+  -- NULL si nunca se pregunto. No dice si es climatizada: Agoda no lo sabe.
+  pileta       INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS snapshots (
@@ -105,6 +108,8 @@ export function abrirDb(ruta = rutaDb()) {
 function migrar(db) {
   const columnas = db.prepare('PRAGMA table_info(snapshots)').all().map((c) => c.name);
   if (!columnas.includes('origen')) db.exec('ALTER TABLE snapshots ADD COLUMN origen TEXT');
+  const deProp = db.prepare('PRAGMA table_info(propiedades)').all().map((c) => c.name);
+  if (!deProp.includes('pileta')) db.exec('ALTER TABLE propiedades ADD COLUMN pileta INTEGER');
 }
 
 export function claveBusqueda({ ciudadId, checkIn, los, adultos, ninos, habitaciones, moneda }) {
@@ -143,13 +148,14 @@ const b2i = (v) => (v ? 1 : 0);
 export function guardarSnapshot(db, busquedaId, propiedades, { totalDisponibles = null, paginas = null, origen = null } = {}) {
   const tomado = ahoraISO();
   const upProp = db.prepare(`
-    INSERT INTO propiedades (property_id, nombre, tipo_id, tipo, familia, estrellas, zona, ciudad, ciudad_id, pais, lat, lon, url, imagen, nota, reviews, actualizada)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    INSERT INTO propiedades (property_id, nombre, tipo_id, tipo, familia, estrellas, zona, ciudad, ciudad_id, pais, lat, lon, url, imagen, nota, reviews, actualizada, pileta)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(property_id) DO UPDATE SET
       nombre=excluded.nombre, tipo=COALESCE(excluded.tipo, propiedades.tipo), estrellas=excluded.estrellas,
       zona=COALESCE(excluded.zona, propiedades.zona), url=COALESCE(excluded.url, propiedades.url),
       imagen=COALESCE(excluded.imagen, propiedades.imagen),
       nota=COALESCE(excluded.nota, propiedades.nota), reviews=COALESCE(excluded.reviews, propiedades.reviews),
+      pileta=COALESCE(excluded.pileta, propiedades.pileta),
       actualizada=excluded.actualizada
   `);
   const insPrecio = db.prepare(`
@@ -166,7 +172,7 @@ export function guardarSnapshot(db, busquedaId, propiedades, { totalDisponibles 
 
     for (const p of propiedades) {
       upProp.run(p.propertyId, p.nombre, p.tipoId, p.tipo, p.familia, p.estrellas, p.zona, p.ciudad,
-                 p.ciudadId, p.pais, p.lat, p.lon, p.url, p.imagen, p.nota, p.reviews, tomado);
+                 p.ciudadId, p.pais, p.lat, p.lon, p.url, p.imagen, p.nota, p.reviews, tomado, p.pileta ?? null);
       insPrecio.run(snapshotId, p.propertyId, p.porNoche, p.porNocheSinImp, p.total, p.tachado,
                     p.moneda, b2i(p.disponible), p.cancelacion, p.habitacionesLibres);
     }
@@ -197,7 +203,7 @@ export function origenDeSnapshot(db, snapshotId) {
 export function filasSnapshot(db, snapshotId) {
   return db.prepare(`
     SELECT pr.*, p.nombre, p.tipo, p.tipo_id, p.familia, p.estrellas, p.zona, p.ciudad,
-           p.lat, p.lon, p.url, p.imagen, p.nota, p.reviews
+           p.lat, p.lon, p.url, p.imagen, p.nota, p.reviews, p.pileta
     FROM precios pr JOIN propiedades p USING (property_id)
     WHERE pr.snapshot_id = ?
   `).all(snapshotId);
@@ -229,7 +235,7 @@ export function evolucion(db, busquedaId, { desdeHoras = null, origen = null } =
              COUNT(*) AS muestras, MIN(tomado) AS primera_vez, MAX(tomado) AS ultima_vez
       FROM obs GROUP BY property_id
     )
-    SELECT p.property_id, p.nombre, p.tipo, p.tipo_id, p.familia, p.estrellas, p.zona, p.ciudad,
+    SELECT p.property_id, p.nombre, p.tipo, p.tipo_id, p.familia, p.estrellas, p.zona, p.ciudad, p.pileta,
            p.lat, p.lon, p.url, p.imagen, p.nota, p.reviews,
            ini.por_noche AS precio_inicial, fin.por_noche AS por_noche, fin.total, fin.moneda,
            fin.disponible, fin.cancelacion, fin.habitaciones_libres,

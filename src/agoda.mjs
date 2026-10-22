@@ -133,6 +133,7 @@ export async function capturarPlantilla(page, url, { timeoutMs = 45_000 } = {}) 
 /** Repite el pedido GraphQL con nuestro paginado y orden. */
 export async function pedirPagina(page, plantilla, {
   pageNumber, pageSize = PAGE_SIZE, sortField = 'Price', sortOrder = 'Asc', desde = null, hasta = null,
+  ids = null,
 }) {
   return page.evaluate(async ({ tpl, opts }) => {
     const pd = JSON.parse(tpl.body);
@@ -151,6 +152,12 @@ export async function pedirPagina(page, plantilla, {
         filterKey: 'Price',
         ranges: [{ from: opts.desde ?? 0, to: opts.hasta ?? 999999 }],
       }];
+    }
+
+    // Filtros por id, como los tildes de Agoda ("Piscina" = HotelFacilities 93).
+    if (opts.ids) {
+      sr.filterRequest = sr.filterRequest ?? { idsFilters: [], rangeFilters: [], textFilters: [] };
+      sr.filterRequest.idsFilters = opts.ids;
     }
 
     const headers = { ...tpl.headers };
@@ -174,7 +181,7 @@ export async function pedirPagina(page, plantilla, {
     } catch {
       return { ok: false, status: res.status, error: 'Respuesta no era JSON' };
     }
-  }, { tpl: plantilla, opts: { pageNumber, pageSize, sortField, sortOrder, desde, hasta } });
+  }, { tpl: plantilla, opts: { pageNumber, pageSize, sortField, sortOrder, desde, hasta, ids } });
 }
 
 /**
@@ -318,5 +325,48 @@ export async function scrapear(page, url, { paginas = 3, barrido = false, ventan
     if (!porId.size) throw new Error('Agoda no devolvio ninguna propiedad.');
   }
 
+  // Que tiene pileta no viene en cada alojamiento: Agoda lo sabe solo como
+  // filtro. Asi que se pide la lista con el filtro puesto y se marca cada uno
+  // que aparezca. Si la pasada falla, pileta queda en null (no se sabe), que
+  // no es lo mismo que 0.
+  const conPileta = await idsConFiltro(page, plantilla, PILETA, { pausaMs });
+  if (conPileta) for (const [id, p] of porId) p.pileta = conPileta.has(id) ? 1 : 0;
+  if (verboso && conPileta) process.stderr.write(c('gray', `  con pileta: ${conPileta.size}\n`));
+
   return { ...meta, url, paginas: paginasOk, propiedades: [...porId.values()] };
+}
+
+/** Los filtros de Agoda que cuentan como pileta: la del edificio y la privada. */
+export const PILETA = [
+  { filterKey: 'HotelFacilities', ids: [93] },   // "Piscina"
+  { filterKey: 'RoomAmenities', ids: [50] },     // "Piscina privada"
+];
+
+/**
+ * Los ids de los alojamientos que pasan alguno de los filtros. Cada filtro se
+ * pide por separado: juntos, Agoda devuelve los que cumplen los dos a la vez.
+ * Devuelve null si no se pudo completar, para no marcar a todos como "sin".
+ */
+async function idsConFiltro(page, plantilla, filtros, { pausaMs = 1200, maxPaginas = 10 } = {}) {
+  const ids = new Set();
+  for (const filtro of filtros) {
+    for (let n = 1, intentos = 0; n <= maxPaginas;) {
+      const r = await pedirPagina(page, plantilla, { pageNumber: n, ids: [filtro] });
+      if (!r.ok) return null;
+      const cs = r.json?.data?.citySearch;
+      const props = cs?.properties ?? [];
+      // La primera respuesta de una busqueda nueva suele venir "incompleta" y
+      // vacia mientras Agoda la arma: hay que volver a pedir la misma pagina.
+      if (!props.length && cs?.searchResult?.searchInfo?.isComplete === false && intentos < 5) {
+        intentos++;
+        await sleep(1000);
+        continue;
+      }
+      for (const pr of parsearRespuesta(r.json)?.propiedades ?? []) ids.add(pr.propertyId);
+      if (props.length < PAGE_SIZE) break;
+      n++; intentos = 0;
+      await sleep(pausaMs);
+    }
+  }
+  return ids;
 }

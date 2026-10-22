@@ -30,6 +30,13 @@ Si ademas se manda el archivo por el chat, esa copia si con
 `--fotos incrustadas --fotos-ancho 200`: el visor del chat bloquea imagenes
 externas.
 
+## Pileta
+
+`scrapear` hace una pasada extra con los filtros de Agoda "Piscina"
+(HotelFacilities 93) y "Piscina privada" (RoomAmenities 50) y marca
+`pileta` = 1/0 en cada alojamiento (NULL si la pasada fallo). Agoda no dice si
+es climatizada. La pagina tiene el tilde "con pileta".
+
 ## Estado
 
 Recoleccion automatica prendida de nuevo el 20/10 (estuvo apagada del 24/9 al

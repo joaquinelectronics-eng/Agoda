@@ -47,7 +47,7 @@ env:
   HORIZONTES_LENTOS: '3 5 7'
   # Noches puntuales que el usuario esta mirando: van en cada vuelta y son las
   # que muestra la pagina. Las que ya pasaron se saltean solas.
-  NOCHES_FIJAS: '2026-10-30 2026-10-31'
+  NOCHES_FIJAS: '2026-10-31 2026-10-30'
   FILTROS: --moneda USD --paginas todas --silencioso --serie datos
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

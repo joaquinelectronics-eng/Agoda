@@ -42,7 +42,7 @@ env:
   # Las noches que muestra la pagina: hoy, manana y pasado.
   HORIZONTES: '0 1 2'
   # Si hay noches puntuales por delante, la pagina muestra esas.
-  NOCHES_FIJAS: '2026-10-30 2026-10-31'
+  NOCHES_FIJAS: '2026-10-31 2026-10-30'
   FILTROS: --moneda USD --paginas todas --silencioso --serie datos
   SOLO: ${{ inputs.solo_pagina }}
 
